@@ -1,2 +1,2 @@
-# goat
+# GoAt
 Go powered with attributes
