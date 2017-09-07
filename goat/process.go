@@ -77,7 +77,7 @@ func (p *Process) Spawn(procFnc func(p *Process)) {
 
 type attributesInMessage struct {
 	attribs *Attributes
-	inMsg   inMessage
+	inMsg   Message
 }
 
 /*
@@ -199,8 +199,8 @@ func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendR
 			inMsg := attrsIM.inMsg
 			nextAction := chooseFnc(attrs, true)
 			if nextAction.action == receiveAction &&
-				attrs.Satisfy(inMsg.predicate) &&
-				nextAction.accept(attrs, inMsg.message) {
+				attrs.Satisfy(inMsg.Pred) &&
+				nextAction.accept(attrs, inMsg.Message) {
 				p.chnAcceptMessage <- true
 				close(chnFailTheSend)
 				return

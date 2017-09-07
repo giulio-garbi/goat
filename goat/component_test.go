@@ -22,7 +22,7 @@ func teardownTest(t chan struct{}, srv *CentralServer) {
 
 func TestComponentEmpty(t *testing.T) {
 	defer teardownTest(initTest(200))
-	comp := NewComponent("127.0.0.1:17654")
+	comp := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
 	run := false
 	NewProcess(comp).Run(func(*Process) {
 		run = true
@@ -37,8 +37,8 @@ func TestComponentEmpty(t *testing.T) {
 func TestTwoComponentEmpty(t *testing.T) {
 	chn, srv := initTest(200)
 	run1 := false
-	comp1 := NewComponent("127.0.0.1:17654")
-	comp2 := NewComponent("127.0.0.1:17654")
+	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
 	NewProcess(comp1).Run(func(*Process) {
 		run1 = true
 	})
@@ -74,8 +74,8 @@ func TestSendReceiveObject(t *testing.T) {
 	var recOb Foo;
 	sent := false
 	received := false
-	comp1 := NewComponent("127.0.0.1:17654")
-	comp2 := NewComponent("127.0.0.1:17654")
+	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
 	NewProcess(comp1).Run(func(p *Process) {
 		p.SendObject(func(*Attributes) (interface{}, Predicate, bool) {
 			return sendOb, True{}, true
@@ -102,8 +102,8 @@ func TestSendReceive(t *testing.T) {
 	chn, srv := initTest(200)
 	sent := false
 	received := false
-	comp1 := NewComponent("127.0.0.1:17654")
-	comp2 := NewComponent("127.0.0.1:17654")
+	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
 	NewProcess(comp1).Run(func(p *Process) {
 		p.Send(func(*Attributes) (string, Predicate, bool) {
 			return "Ciao", True{}, true
@@ -129,9 +129,9 @@ func TestSendTwoReceive(t *testing.T) {
 	sent := false
 	received2 := false
 	received3 := false
-	comp1 := NewComponent("127.0.0.1:17654")
-	comp2 := NewComponent("127.0.0.1:17654")
-	comp3 := NewComponent("127.0.0.1:17654")
+	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp3 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
 	NewProcess(comp1).Run(func(p *Process) {
 		p.Send(func(*Attributes) (string, Predicate, bool) {
 			return "Ciao", True{}, true
@@ -163,9 +163,9 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 	sent := false
 	received2 := false
 	received3 := false
-	comp1 := NewComponent("127.0.0.1:17654")
-	comp2 := NewComponent("127.0.0.1:17654")
-	comp3 := NewComponent("127.0.0.1:17654")
+	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp3 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
 	NewProcess(comp1).Run(func(p *Process) {
 		p.Send(func(*Attributes) (string, Predicate, bool) {
 			return "Ciao", True{}, true

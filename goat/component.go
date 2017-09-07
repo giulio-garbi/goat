@@ -19,7 +19,8 @@ to AbC semantics.
 */
 type Component struct {
 	attributes          Attributes
-	ncomm               *netCommunication
+	//ncomm               *netCommunication
+	agent               Agent
 	subscribedProcesses map[*Process]struct{}
 
 	condAttributeChanged *sync.Cond
@@ -31,7 +32,7 @@ type Component struct {
 	chnUpdateEventToProc chan chan struct{}
 	nid                  int
 	chnEvtMessageSent    chan int
-	chnComponentInbox    chan inMessage
+	chnComponentInbox    chan Message
 	chnUpdateEvent       chan struct{}
 	chnWaitForMid        chan int
 	chnClearToSend       chan struct{}
@@ -43,15 +44,15 @@ type Component struct {
 NewComponent defines a new component that interacts with the infrastructure whose
 access point is the server URI. Its environment is the empty set.
 */
-func NewComponent(server string) *Component {
-	return NewComponentWithAttributes(server, nil)
+func NewComponent(agent Agent) *Component {
+	return NewComponentWithAttributes(agent, nil)
 }
 
 /*
 NewComponentWithAttributes defines a new component that interacts with the infrastructure whose
 access point is the server URI. The environment is initialized according to attrInit.
 */
-func NewComponentWithAttributes(server string, attrInit map[string]string) *Component {
+func NewComponentWithAttributes(agent Agent, attrInit map[string]string) *Component {
 	c := Component{
 		attributes:           Attributes{},
 		chnMessageToSend:     make(chan messagePredicate),
@@ -61,19 +62,24 @@ func NewComponentWithAttributes(server string, attrInit map[string]string) *Comp
 		chnSubscribe:         make(chan *Process),
 		chnUnsubscribe:       make(chan *Process),
 		chnUpdateEventToProc: make(chan chan struct{}),
-		chnComponentInbox:    make(chan inMessage),
+		chnComponentInbox:    make(chan Message),
 		chnEvtMessageSent:    make(chan int),
 		chnUpdateEvent:       make(chan struct{}),
 		chnWaitForMid:        make(chan int),
 		chnClearToSend:       make(chan struct{}),
 		chnWantsToSend:       make(chan struct{}),
 		chnComponentStarts:   make(chan struct{}),
+		agent: agent,
 	}
 	if attrInit != nil {
 		c.attributes.init(attrInit)
 	}
-	c.ncomm = netCommunicationInitAndRun(server)
-	c.nid = c.ncomm.firstMessageId
+	//c.ncomm = netCommunicationInitAndRun(server)
+	//c.agent = NewSingleServerAgent(server)
+	c.agent.Start()
+	fmt.Println(c.agent.GetComponentId(),"started")
+	//c.nid = c.ncomm.firstMessageId
+	c.nid = c.agent.GetFirstMessageId()
 
 	go c.readMessageGoroutine()
 	go c.componentGoroutine()
@@ -91,25 +97,26 @@ func (c *Component) sendMessage(messageToSend messagePredicate, mid int) int {
 	//	return -1
 	//}
 	//mid := c.ncomm.getMessageId()
-	var msgWithMid outMessage
+	var msgWithMid Message
 	if messageToSend.invalid {
-		msgWithMid = outMessage{
-			message:   "",
-			predicate: False{},
-			id:        mid,
+		msgWithMid = Message{
+			Message:   "",
+			Pred: False{},
+			Id:        mid,
 		}
 	} else {
-		msgWithMid = outMessage{
-			message:   messageToSend.message,
-			predicate: messageToSend.predicate,
-			id:        mid,
+		msgWithMid = Message{
+			Message:   messageToSend.message,
+			Pred: messageToSend.predicate,
+			Id:        mid,
 		}
 	}
 	c.chnEvtMessageSent <- mid
-	if _, ok := msgWithMid.predicate.(False); !ok {
-		fmt.Println("Sending", c.ncomm.componentId, "->", msgWithMid.message, "[", msgWithMid.id, "]")
+	if _, ok := msgWithMid.Pred.(False); !ok {
+		fmt.Println("Sending", c.agent.GetComponentId(), "->", msgWithMid.Message, "[", msgWithMid.Id, "]")
 	}
-	c.ncomm.chnOutbox <- msgWithMid
+	//c.ncomm.chnOutbox <- msgWithMid
+	c.agent.Outbox() <- msgWithMid
 	return mid
 }
 
@@ -126,7 +133,7 @@ readMessageGoroutine is a goroutine that:
     already sent or received.
 */
 func (c *Component) readMessageGoroutine() {
-	msgInbox := map[int]inMessage{}
+	msgInbox := map[int]Message{}
 	msgOutbox := map[int]bool{}
 	midToWait := -1
 	componentStarted := false
@@ -135,9 +142,9 @@ func (c *Component) readMessageGoroutine() {
 		dispatching := false
 		for !componentStarted {
 			select {
-			case msg := <-c.ncomm.chnInbox:
-				msgInbox[msg.id] = msg
-				dispatching = msg.id == c.nid
+			case msg := <-c.agent.Inbox():
+				msgInbox[msg.Id] = msg
+				dispatching = msg.Id == c.nid
 			case mid := <-c.chnEvtMessageSent:
 				msgOutbox[mid] = true
 				dispatching = mid == c.nid
@@ -147,7 +154,7 @@ func (c *Component) readMessageGoroutine() {
 				componentStarted = true
 				if c.nid == midToWait {
 					close(c.chnClearToSend)
-					fmt.Println(c.ncomm.componentId, "CTS", midToWait)
+					fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
 					c.chnClearToSend = make(chan struct{})
 					midToWait = -1
 				}
@@ -155,16 +162,16 @@ func (c *Component) readMessageGoroutine() {
 		}
 		for !dispatching {
 			select {
-			case msg := <-c.ncomm.chnInbox:
-				msgInbox[msg.id] = msg
-				dispatching = msg.id == c.nid
+			case msg := <-c.agent.Inbox():
+				msgInbox[msg.Id] = msg
+				dispatching = msg.Id == c.nid
 			case mid := <-c.chnEvtMessageSent:
 				msgOutbox[mid] = true
 				dispatching = mid == c.nid
 			case midToWait = <-c.chnWaitForMid:
 				if c.nid == midToWait {
 					close(c.chnClearToSend)
-					fmt.Println(c.ncomm.componentId, "CTS", midToWait)
+					fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
 					c.chnClearToSend = make(chan struct{})
 					midToWait = -1
 				}
@@ -178,7 +185,7 @@ func (c *Component) readMessageGoroutine() {
 				c.nid++
 				if c.nid == midToWait {
 					close(c.chnClearToSend)
-					fmt.Println(c.ncomm.componentId, "CTS", midToWait)
+					fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
 					c.chnClearToSend = make(chan struct{})
 					midToWait = -1
 				}
@@ -198,14 +205,14 @@ func (c *Component) readMessageGoroutine() {
 							c.chnClearToSend = make(chan struct{})
 							midToWait = -1
 						}*/
-					case msg := <-c.ncomm.chnInbox:
-						msgInbox[msg.id] = msg
+					case msg := <-c.agent.Inbox():
+						msgInbox[msg.Id] = msg
 					case mid := <-c.chnEvtMessageSent:
 						msgOutbox[mid] = true
 					case midToWait = <-c.chnWaitForMid:
 						if c.nid == midToWait {
 							close(c.chnClearToSend)
-							fmt.Println(c.ncomm.componentId, "CTS", midToWait)
+							fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
 							c.chnClearToSend = make(chan struct{})
 							midToWait = -1
 						}
@@ -213,15 +220,15 @@ func (c *Component) readMessageGoroutine() {
 				}
 				for sentMsg := false; !sentMsg; {
 					select {
-					case msg := <-c.ncomm.chnInbox:
-						msgInbox[msg.id] = msg
+					case msg := <-c.agent.Inbox():
+						msgInbox[msg.Id] = msg
 					case mid := <-c.chnEvtMessageSent:
 						if mid == c.nid {
 							c.nid++
 							sentMsg = true
 							if c.nid == midToWait {
 								close(c.chnClearToSend)
-								fmt.Println(c.ncomm.componentId, "CTS", midToWait)
+								fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
 								c.chnClearToSend = make(chan struct{})
 								midToWait = -1
 							}
@@ -231,7 +238,7 @@ func (c *Component) readMessageGoroutine() {
 					case midToWait = <-c.chnWaitForMid:
 						if c.nid == midToWait {
 							close(c.chnClearToSend)
-							fmt.Println(c.ncomm.componentId, "CTS", midToWait)
+							fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
 							c.chnClearToSend = make(chan struct{})
 							midToWait = -1
 						}
@@ -248,7 +255,7 @@ func (c *Component) readMessageGoroutine() {
 sendMessageToProcesses is called when the component must forward a message to its
 processes.
 */
-func (c *Component) sendMessageToProcesses(messageToDeliver inMessage) {
+func (c *Component) sendMessageToProcesses(messageToDeliver Message) {
 	//fmt.Println(c.ncomm.componentId, "smtp+", messageToDeliver.id)
 	recipients := map[*Process]chan struct{}{}
 	for p := range c.subscribedProcesses {
@@ -288,9 +295,9 @@ func (c *Component) sendMessageToProcesses(messageToDeliver inMessage) {
 				reply = true
 				if rAccepted {
 					anyUpdates := c.attributes.commit()
-					c.chnEvtMessageSent <- messageToDeliver.id
+					c.chnEvtMessageSent <- messageToDeliver.Id
 					fmt.Println(c.attributes)
-					fmt.Println("Accepted", c.ncomm.componentId, "<-", messageToDeliver.message, "[", messageToDeliver.id, "]")
+					fmt.Println("Accepted", c.agent.GetComponentId(), "<-", messageToDeliver.Message, "[", messageToDeliver.Id, "]")
 					if anyUpdates {
 						close(c.chnUpdateEvent)
 						c.chnUpdateEvent = make(chan struct{})
@@ -303,7 +310,7 @@ func (c *Component) sendMessageToProcesses(messageToDeliver inMessage) {
 			}
 		}
 	}
-	c.chnEvtMessageSent <- messageToDeliver.id
+	c.chnEvtMessageSent <- messageToDeliver.Id
 	//fmt.Println(c.ncomm.componentId, "smtp-", messageToDeliver.id)
 }
 
@@ -315,7 +322,7 @@ are sent/received)
 func (c *Component) sendMessageFromProcess() {
 	//fmt.Println(c.ncomm.componentId, "smfp*")
 	cts := c.chnClearToSend
-	msgId := c.ncomm.getMessageId()
+	msgId := c.agent.GetMessageId()
 	c.chnWaitForMid <- msgId
 
 	for readyToSend := false; !readyToSend; {
