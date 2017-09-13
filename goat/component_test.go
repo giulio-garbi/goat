@@ -3,9 +3,10 @@ package goat
 
 import (
 	"testing"
+	"fmt"
 )
 
-func initTest(timeout int64) (chan struct{}, *CentralServer) {
+func initTestCS(timeout int64) (chan struct{}, *CentralServer) {
 	// Launching a simple server
 	// TODO add support to change server type
 
@@ -14,15 +15,76 @@ func initTest(timeout int64) (chan struct{}, *CentralServer) {
 	return term, srv
 }
 
-func teardownTest(t chan struct{}, srv *CentralServer) {
+func teardownTestCS(t chan struct{}, srv *CentralServer) {
 	// waits until the server ends
 	<-t
 	srv.Terminate()
 }
 
+type testClusterInfrastructure struct{
+    nodes []*ClusterNode
+    agents []*ClusterAgent
+    registration *ClusterAgentRegistration
+    msgQ *ClusterMessageQueue
+    counter *ClusterCounter
+    terms []chan struct{}
+}
+
+func (tci *testClusterInfrastructure) initTest(timeout int64, clusterSize int, componentNbr int) {
+	// Launching a clustered infrastructure
+	tci.terms = make([]chan struct{}, 3 + clusterSize)
+	
+	msgQAddr := "127.0.0.1:17999"
+	counterAddr := "127.0.0.1:17998"
+	registrationAddr := "127.0.0.1:17997"
+	nodesAddr := make([]string, clusterSize)
+	for i:=0; i<clusterSize; i++{
+	    nodesAddr[i] = fmt.Sprintf("127.0.0.1:%d",18000+i)
+	    tci.terms[i+3] = make(chan struct{})
+	}
+	tci.terms[0] = make(chan struct{})
+	tci.terms[1] = make(chan struct{})
+	tci.terms[2] = make(chan struct{})
+	
+	tci.msgQ = newClusterMessageQueue(17999)
+	tci.counter = newClusterCounter(17998)
+	tci.registration = newClusterAgentRegistration(17997, counterAddr, nodesAddr)
+	tci.nodes = make([]*ClusterNode, clusterSize)
+	for i:=0; i<clusterSize; i++{
+	    tci.nodes[i] = newClusterNode(18000+i, msgQAddr, counterAddr, registrationAddr)
+	}
+    
+    go tci.counter.work(timeout, tci.terms[1])
+    go tci.msgQ.work(timeout, tci.terms[0])
+    go tci.registration.work(timeout, tci.terms[2])
+    
+    for i:=0; i<clusterSize; i++{
+	    go tci.nodes[i].work(timeout, tci.terms[3+i])
+	}
+    
+    tci.agents = make([]*ClusterAgent, componentNbr)
+    for i:=0; i<componentNbr; i++{
+        tci.agents[i] = NewClusterAgent(msgQAddr, registrationAddr)
+	}
+}
+
+func (tci *testClusterInfrastructure) teardownTest(){
+    for _, chnTO := range tci.terms{
+        <- chnTO
+    }
+    tci.counter.Terminate()
+    tci.msgQ.Terminate()
+    tci.registration.Terminate()
+    for _, nd := range tci.nodes{
+        nd.Terminate()
+    }
+} 
+
 func TestComponentEmpty(t *testing.T) {
-	defer teardownTest(initTest(200))
-	comp := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+    tst := testClusterInfrastructure{}
+    tst.initTest(2000, 1, 1)
+	defer tst.teardownTest()
+	comp := NewComponent(tst.agents[0])
 	run := false
 	NewProcess(comp).Run(func(*Process) {
 		run = true
@@ -35,10 +97,12 @@ func TestComponentEmpty(t *testing.T) {
 }
 
 func TestTwoComponentEmpty(t *testing.T) {
-	chn, srv := initTest(200)
+    tst := testClusterInfrastructure{}
+    tst.initTest(2000, 1, 2)
+	
 	run1 := false
-	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp1 := NewComponent(tst.agents[0])
+	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(*Process) {
 		run1 = true
 	})
@@ -47,7 +111,7 @@ func TestTwoComponentEmpty(t *testing.T) {
 		run2 = true
 	})
 	defer func() {
-		teardownTest(chn, srv)
+		tst.teardownTest()
 		if !run1 || !run2 {
 			t.Fail()
 		}
@@ -63,7 +127,8 @@ type Foo struct {
 };
 
 func TestSendReceiveObject(t *testing.T) {
-	chn, srv := initTest(200)
+	tst := testClusterInfrastructure{}
+    tst.initTest(2000, 1, 2)
 	sendOb := Foo{
 	    Dog : "bark",
 	    Cat : "meoww",
@@ -74,8 +139,8 @@ func TestSendReceiveObject(t *testing.T) {
 	var recOb Foo;
 	sent := false
 	received := false
-	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp1 := NewComponent(tst.agents[0])
+	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(p *Process) {
 		p.SendObject(func(*Attributes) (interface{}, Predicate, bool) {
 			return sendOb, True{}, true
@@ -91,7 +156,7 @@ func TestSendReceiveObject(t *testing.T) {
 		received = true
 	})
 	defer func() {
-		teardownTest(chn, srv)
+		tst.teardownTest()
 		if !sent || !received {
 			t.Fail()
 		}
@@ -99,11 +164,13 @@ func TestSendReceiveObject(t *testing.T) {
 }
 
 func TestSendReceive(t *testing.T) {
-	chn, srv := initTest(200)
+	tst := testClusterInfrastructure{}
+    tst.initTest(2000, 1, 2)
+    
 	sent := false
 	received := false
-	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp1 := NewComponent(tst.agents[0])
+	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(p *Process) {
 		p.Send(func(*Attributes) (string, Predicate, bool) {
 			return "Ciao", True{}, true
@@ -117,7 +184,7 @@ func TestSendReceive(t *testing.T) {
 		received = true
 	})
 	defer func() {
-		teardownTest(chn, srv)
+		tst.teardownTest()
 		if !sent || !received {
 			t.Fail()
 		}
@@ -125,13 +192,14 @@ func TestSendReceive(t *testing.T) {
 }
 
 func TestSendTwoReceive(t *testing.T) {
-	chn, srv := initTest(200)
+	tst := testClusterInfrastructure{}
+    tst.initTest(2000, 1, 3)
 	sent := false
 	received2 := false
 	received3 := false
-	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp3 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp1 := NewComponent(tst.agents[0])
+	comp2 := NewComponent(tst.agents[1])
+	comp3 := NewComponent(tst.agents[2])
 	NewProcess(comp1).Run(func(p *Process) {
 		p.Send(func(*Attributes) (string, Predicate, bool) {
 			return "Ciao", True{}, true
@@ -151,7 +219,7 @@ func TestSendTwoReceive(t *testing.T) {
 		received3 = true
 	})
 	defer func() {
-		teardownTest(chn, srv)
+		tst.teardownTest()
 		if !sent || !received2 || !received3 {
 			t.Fail()
 		}
@@ -159,13 +227,14 @@ func TestSendTwoReceive(t *testing.T) {
 }
 
 func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
-	chn, srv := initTest(200)
+	tst := testClusterInfrastructure{}
+    tst.initTest(2000, 1, 3)
 	sent := false
 	received2 := false
 	received3 := false
-	comp1 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp2 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
-	comp3 := NewComponent(NewSingleServerAgent("127.0.0.1:17654"))
+	comp1 := NewComponent(tst.agents[0])
+	comp2 := NewComponent(tst.agents[1])
+	comp3 := NewComponent(tst.agents[2])
 	NewProcess(comp1).Run(func(p *Process) {
 		p.Send(func(*Attributes) (string, Predicate, bool) {
 			return "Ciao", True{}, true
@@ -191,7 +260,7 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 		received3 = true
 	})
 	defer func() {
-		teardownTest(chn, srv)
+		tst.teardownTest()
 		if !sent || !received2 || !received3 {
 			t.Fail()
 		}

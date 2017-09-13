@@ -7,46 +7,6 @@ import(
     "bufio"
 )
 
-
-func escape(s string) string {
-    rpl := strings.NewReplacer("\\","\\\\"," ","\\_",",","\\,",")","\\)","\n","\\n")
-    return rpl.Replace(s)
-}
-func unescape(s string, from int) (string, int) {
-    out := ""
-    escapeRun := false
-    i:=from
-    for ; i<len(s); i++ {
-        if escapeRun {
-            switch s[i] {
-                case '_':
-                    out += " "
-                case 'n':
-                    out += "\n"
-                case '\\', ',', ')':
-                    out += string(s[i:i+1])
-                default:
-                    // TODO error!
-                    out += "\\" + string(s[i:i+1])
-            }
-            escapeRun = false
-        } else {
-            switch s[i] {
-                case '\\':
-                    escapeRun = true
-                case ',', ')':
-                    return out, i
-                default:
-                    out += string(s[i:i+1])
-            }
-        }
-    }
-    if escapeRun {
-        out += "\\"
-    }
-    return out, i
-} 
-
 type outMessage struct {
     id int
     message string
