@@ -80,8 +80,62 @@ func (tci *testClusterInfrastructure) teardownTest(){
     }
 } 
 
+
+type testRingInfrastructure struct{
+    nodes []*RingNode
+    agents []*RingAgent
+    registration *RingAgentRegistration
+    counter *ClusterCounter
+    terms []chan struct{}
+}
+
+func (tri *testRingInfrastructure) initTest(timeout int64, ringSize int, componentNbr int) {
+	// Launching a clustered infrastructure
+	tri.terms = make([]chan struct{}, 2 + ringSize)
+	
+	counterAddr := "127.0.0.1:17998"
+	registrationAddr := "127.0.0.1:17997"
+	nodesAddr := make([]string, ringSize)
+	for i:=0; i<ringSize; i++{
+	    nodesAddr[i] = fmt.Sprintf("127.0.0.1:%d",18000+i)
+	    tri.terms[i+2] = make(chan struct{})
+	}
+	tri.terms[0] = make(chan struct{})
+	tri.terms[1] = make(chan struct{})
+	
+	tri.counter = NewClusterCounter(17998)
+	tri.registration = NewRingAgentRegistration(17997, nodesAddr)
+	tri.nodes = make([]*RingNode, ringSize)
+	for i:=0; i<ringSize; i++{
+	    tri.nodes[i] = NewRingNode(18000+i, counterAddr, nodesAddr[(i+1)%ringSize])
+	}
+    
+    go tri.counter.Work(timeout, tri.terms[0])
+    go tri.registration.Work(timeout, tri.terms[1])
+    
+    for i:=0; i<ringSize; i++{
+	    go tri.nodes[i].Work(timeout, tri.terms[2+i])
+	}
+    
+    tri.agents = make([]*RingAgent, componentNbr)
+    for i:=0; i<componentNbr; i++{
+        tri.agents[i] = NewRingAgent(registrationAddr)
+	}
+}
+
+func (tri *testRingInfrastructure) teardownTest(){
+    for _, chnTO := range tri.terms{
+        <- chnTO
+    }
+    tri.counter.Terminate()
+    tri.registration.Terminate()
+    for _, nd := range tri.nodes{
+        nd.Terminate()
+    }
+} 
+
 func TestComponentEmpty(t *testing.T) {
-    tst := testClusterInfrastructure{}
+    tst := testRingInfrastructure{}
     tst.initTest(2000, 1, 1)
 	defer tst.teardownTest()
 	comp := NewComponent(tst.agents[0])
@@ -97,7 +151,7 @@ func TestComponentEmpty(t *testing.T) {
 }
 
 func TestTwoComponentEmpty(t *testing.T) {
-    tst := testClusterInfrastructure{}
+    tst := testRingInfrastructure{}
     tst.initTest(2000, 1, 2)
 	
 	run1 := false
@@ -127,7 +181,7 @@ type Foo struct {
 };
 
 func TestSendReceiveObject(t *testing.T) {
-	tst := testClusterInfrastructure{}
+	tst := testRingInfrastructure{}
     tst.initTest(2000, 1, 2)
 	sendOb := Foo{
 	    Dog : "bark",
@@ -164,7 +218,7 @@ func TestSendReceiveObject(t *testing.T) {
 }
 
 func TestSendReceive(t *testing.T) {
-	tst := testClusterInfrastructure{}
+	tst := testRingInfrastructure{}
     tst.initTest(2000, 1, 2)
     
 	sent := false
@@ -192,7 +246,7 @@ func TestSendReceive(t *testing.T) {
 }
 
 func TestSendTwoReceive(t *testing.T) {
-	tst := testClusterInfrastructure{}
+	tst := testRingInfrastructure{}
     tst.initTest(2000, 1, 3)
 	sent := false
 	received2 := false
@@ -227,7 +281,7 @@ func TestSendTwoReceive(t *testing.T) {
 }
 
 func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
-	tst := testClusterInfrastructure{}
+	tst := testRingInfrastructure{}
     tst.initTest(2000, 1, 3)
 	sent := false
 	received2 := false
