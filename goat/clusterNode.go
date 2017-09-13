@@ -16,7 +16,7 @@ type ClusterAgentRegistration struct {
     compId int
 }
 
-func newClusterAgentRegistration(port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration{
+func NewClusterAgentRegistration(port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration{
     return &ClusterAgentRegistration{
         listener: listenToPort(port),
         counterAddress: counterAddress,
@@ -27,7 +27,7 @@ func newClusterAgentRegistration(port int, counterAddress string, nodesAddresses
     }
 }
 
-func (car *ClusterAgentRegistration) work(timeout int64, timedOut chan<- struct{}){
+func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for {
         if len(car.queuedAgents) == 0 {
@@ -108,7 +108,7 @@ type ClusterMessageQueue struct{
     queued []netAddress
 }
 
-func newClusterMessageQueue(port int) *ClusterMessageQueue {
+func NewClusterMessageQueue(port int) *ClusterMessageQueue {
     return &ClusterMessageQueue{
         listener: listenToPort(port),
         messages: make([][]string, 0),
@@ -116,7 +116,7 @@ func newClusterMessageQueue(port int) *ClusterMessageQueue {
     }
 }
 
-func (cmq *ClusterMessageQueue) work(timeout int64, timedOut chan<- struct{}){
+func (cmq *ClusterMessageQueue) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for{
         cmd, params, srcAddr := receiveWithAddressTimeout(cmq.listener, timeout, &hasTimedOut)
@@ -156,7 +156,7 @@ type ClusterNode struct{
     port string
 }
 
-func newClusterNode(port int, messageQueueAddress string, counterAddress string, registrationAddress string) *ClusterNode {
+func NewClusterNode(port int, messageQueueAddress string, counterAddress string, registrationAddress string) *ClusterNode {
     return &ClusterNode{
         messageQueueAddress: messageQueueAddress,
         counterAddress: counterAddress,
@@ -167,7 +167,7 @@ func newClusterNode(port int, messageQueueAddress string, counterAddress string,
     }
 }
 
-func (cn *ClusterNode) work(timeout int64, timedOut chan<- struct{}){
+func (cn *ClusterNode) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for{
         sendTo(cn.messageQueueAddress, "get", cn.port)

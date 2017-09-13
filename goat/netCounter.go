@@ -9,13 +9,13 @@ type ClusterCounter struct {
     count int
 }
 
-func newClusterCounter(port int) *ClusterCounter{
+func NewClusterCounter(port int) *ClusterCounter{
     return &ClusterCounter{
         listener: listenToPort(port),
     }
 }
 
-func (cc *ClusterCounter) work(timeout int64, timedOut chan<- struct{}){
+func (cc *ClusterCounter) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for {
         cmd, params, srcAddr := receiveWithAddressTimeout(cc.listener, timeout, &hasTimedOut)

@@ -46,20 +46,20 @@ func (tci *testClusterInfrastructure) initTest(timeout int64, clusterSize int, c
 	tci.terms[1] = make(chan struct{})
 	tci.terms[2] = make(chan struct{})
 	
-	tci.msgQ = newClusterMessageQueue(17999)
-	tci.counter = newClusterCounter(17998)
-	tci.registration = newClusterAgentRegistration(17997, counterAddr, nodesAddr)
+	tci.msgQ = NewClusterMessageQueue(17999)
+	tci.counter = NewClusterCounter(17998)
+	tci.registration = NewClusterAgentRegistration(17997, counterAddr, nodesAddr)
 	tci.nodes = make([]*ClusterNode, clusterSize)
 	for i:=0; i<clusterSize; i++{
-	    tci.nodes[i] = newClusterNode(18000+i, msgQAddr, counterAddr, registrationAddr)
+	    tci.nodes[i] = NewClusterNode(18000+i, msgQAddr, counterAddr, registrationAddr)
 	}
     
-    go tci.counter.work(timeout, tci.terms[1])
-    go tci.msgQ.work(timeout, tci.terms[0])
-    go tci.registration.work(timeout, tci.terms[2])
+    go tci.counter.Work(timeout, tci.terms[1])
+    go tci.msgQ.Work(timeout, tci.terms[0])
+    go tci.registration.Work(timeout, tci.terms[2])
     
     for i:=0; i<clusterSize; i++{
-	    go tci.nodes[i].work(timeout, tci.terms[3+i])
+	    go tci.nodes[i].Work(timeout, tci.terms[3+i])
 	}
     
     tci.agents = make([]*ClusterAgent, componentNbr)
