@@ -112,6 +112,7 @@ func (rn *RingNode) Work(timeout int64, timedOut chan<- struct{}){
                         }
                         mParams[1] = itoa(sender) // reset before forwarding
                         sendTo(rn.nextNodeAddress, rn.messages[rn.nid]...)
+                        delete(rn.messages, rn.nid)
                     }
                 }
                 
