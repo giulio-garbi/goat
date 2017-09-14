@@ -4,6 +4,7 @@ package goat
 import (
 	"testing"
 	"fmt"
+	"math/rand"
 )
 
 func initTestCS(timeout int64) (chan struct{}, *CentralServer) {
@@ -134,9 +135,97 @@ func (tri *testRingInfrastructure) teardownTest(){
     }
 } 
 
+type testTreeInfrastructure struct{
+    nodes []*TreeNode
+    agents []*TreeAgent
+    registration *TreeAgentRegistration
+    terms []chan struct{}
+}
+
+type treeInfrBuilder struct {
+    myAddress string
+    parentAddress string
+    child []*treeInfrBuilder
+}
+
+func createTree(treeDepth int, maxChild int, portCount int) (*treeInfrBuilder, int) {
+    childs := 0
+    if maxChild > 0 && treeDepth > 0 {
+        childs = 1 + rand.Intn(maxChild)
+    }
+    out := treeInfrBuilder{
+        myAddress: fmt.Sprintf("127.0.0.1:%d", portCount),
+        child: make([]*treeInfrBuilder, childs),
+    }
+    portCount++
+    for i:=0; i<childs; i++{
+        out.child[i], portCount = createTree(treeDepth-1, maxChild, portCount)
+        out.child[i].parentAddress = out.myAddress
+    }
+    return &out, portCount
+}
+
+func (tib *treeInfrBuilder) getParentsChild(parents *map[string]string, childs *map[string][]string){
+    (*parents)[tib.myAddress] = tib.parentAddress
+    (*childs)[tib.myAddress] = make([]string, len(tib.child))
+    for i, tr := range tib.child{
+        ((*childs)[tib.myAddress])[i] = tr.myAddress
+        tr.getParentsChild(parents, childs)
+    }
+}
+
+func (tti *testTreeInfrastructure) initTest(timeout int64, treeDepth int, maxChild int, componentNbr int) {
+    tree, nextPort := createTree(treeDepth, maxChild, 18000)
+    treeSize := nextPort-18000
+
+	// Launching a clustered infrastructure
+	tti.terms = make([]chan struct{}, 1 + treeSize)
+	
+	registrationAddr := "127.0.0.1:17997"
+	nodesAddr := make([]string, treeSize)
+	for i:=0; i<treeSize; i++{
+	    nodesAddr[i] = fmt.Sprintf("127.0.0.1:%d",18000+i)
+	    tti.terms[i+1] = make(chan struct{})
+	}
+	tti.terms[0] = make(chan struct{})
+	
+	tti.registration = NewTreeAgentRegistration(17997, nodesAddr)
+	tti.nodes = make([]*TreeNode, treeSize)
+
+    parents := map[string]string{}
+    childs := map[string][]string{}
+    tree.getParentsChild(&parents, &childs)
+    
+	for i:=0; i<treeSize; i++{
+	    tti.nodes[i] = NewTreeNode(18000+i, parents[nodesAddr[i]], childs[nodesAddr[i]])
+	}
+    
+    go tti.registration.Work(timeout, tti.terms[0])
+    
+    for i:=0; i<treeSize; i++{
+	    go tti.nodes[i].Work(timeout, tti.terms[1+i])
+	}
+    
+    tti.agents = make([]*TreeAgent, componentNbr)
+    for i:=0; i<componentNbr; i++{
+        tti.agents[i] = NewTreeAgent(registrationAddr)
+	}
+}
+
+func (tti *testTreeInfrastructure) teardownTest(){
+    for _, chnTO := range tti.terms{
+        <- chnTO
+        fmt.Println("X", len(tti.terms))
+    }
+    tti.registration.Terminate()
+    for _, nd := range tti.nodes{
+        nd.Terminate()
+    }
+} 
+
 func TestComponentEmpty(t *testing.T) {
-    tst := testRingInfrastructure{}
-    tst.initTest(2000, 1, 1)
+    tst := testTreeInfrastructure{}
+    tst.initTest(2000, 2, 4, 1)
 	defer tst.teardownTest()
 	comp := NewComponent(tst.agents[0])
 	run := false
@@ -151,8 +240,8 @@ func TestComponentEmpty(t *testing.T) {
 }
 
 func TestTwoComponentEmpty(t *testing.T) {
-    tst := testRingInfrastructure{}
-    tst.initTest(2000, 1, 2)
+    tst := testTreeInfrastructure{}
+    tst.initTest(2000, 2, 4, 2)
 	
 	run1 := false
 	comp1 := NewComponent(tst.agents[0])
@@ -181,8 +270,8 @@ type Foo struct {
 };
 
 func TestSendReceiveObject(t *testing.T) {
-	tst := testRingInfrastructure{}
-    tst.initTest(2000, 1, 2)
+	tst := testTreeInfrastructure{}
+    tst.initTest(2000, 2, 4, 2)
 	sendOb := Foo{
 	    Dog : "bark",
 	    Cat : "meoww",
@@ -218,8 +307,8 @@ func TestSendReceiveObject(t *testing.T) {
 }
 
 func TestSendReceive(t *testing.T) {
-	tst := testRingInfrastructure{}
-    tst.initTest(2000, 1, 2)
+	tst := testTreeInfrastructure{}
+    tst.initTest(2000, 2, 4, 2)
     
 	sent := false
 	received := false
@@ -246,8 +335,8 @@ func TestSendReceive(t *testing.T) {
 }
 
 func TestSendTwoReceive(t *testing.T) {
-	tst := testRingInfrastructure{}
-    tst.initTest(2000, 1, 3)
+	tst := testTreeInfrastructure{}
+    tst.initTest(2000, 2, 4, 3)
 	sent := false
 	received2 := false
 	received3 := false
@@ -281,8 +370,9 @@ func TestSendTwoReceive(t *testing.T) {
 }
 
 func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
-	tst := testRingInfrastructure{}
-    tst.initTest(2000, 1, 3)
+    fmt.Println("---")
+	tst := testTreeInfrastructure{}
+    tst.initTest(2000, 2, 4, 3)
 	sent := false
 	received2 := false
 	received3 := false
@@ -315,6 +405,7 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 	})
 	defer func() {
 		tst.teardownTest()
+		fmt.Println(sent, received2, received3)
 		if !sent || !received2 || !received3 {
 			t.Fail()
 		}
