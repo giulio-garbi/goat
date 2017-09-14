@@ -131,7 +131,9 @@ func receiveWithAddressTimeout(listener net.Listener, msec int64, timedOut *bool
             *timedOut = true
             return "", []string{}, netAddress{}
     }
-    _ = err
+    if err != nil {
+        panic(err)
+    }
     serverMsg, err := bufio.NewReader(conn).ReadString('\n')
     if err == nil {
         escTokens := strings.Split(serverMsg[:len(serverMsg)-1], " ")
@@ -141,8 +143,7 @@ func receiveWithAddressTimeout(listener net.Listener, msec int64, timedOut *bool
         }
         return tokens[0], tokens[1:], newNetAddress(conn.RemoteAddr().String())
     } else {
-        //TODO Error
-        return "", []string{}, netAddress{}
+        panic(err)
     }
 }
 

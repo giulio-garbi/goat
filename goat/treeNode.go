@@ -109,7 +109,6 @@ func (tn *TreeNode) Work(timeout int64, timedOut chan<- struct{}){
             close(timedOut)
             return
         }
-        fmt.Println(cmd, params)
         switch cmd {
             case "REQ": // REQ compId port0 addr0 port1 addr1 ... port_n-1 addr_n-1 port_n
                         // NB: I am addr_n+1
