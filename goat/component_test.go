@@ -5,6 +5,7 @@ import (
 	"testing"
 	"fmt"
 	"math/rand"
+	"encoding/gob"
 )
 
 func initTestCS(timeout int64) (chan struct{}, *CentralServer) {
@@ -279,23 +280,27 @@ func TestSendReceiveObject(t *testing.T) {
 	    Rat: []string{"squit"},
 	    Monkey: 5,
 	}
-	var recOb Foo;
+	gob.Register(sendOb) //Needed to exchange non-standard objects
 	sent := false
 	received := false
 	comp1 := NewComponent(tst.agents[0])
 	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.SendObject(func(*Attributes) (interface{}, Predicate, bool) {
-			return sendOb, True{}, true
+		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
+			return NewTuple(sendOb), True{}, true
 		})
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.ReceiveObject(NoPre(), func(attr *Attributes) bool {
+		p.Receive(NoPre(), func(attr *Attributes, t Tuple) bool {
+		    if !t.IsLong(1){
+		        return false
+		    }
+		    recOb := t.Get(0).(Foo)
 			return recOb.Dog == sendOb.Dog && recOb.Cat == sendOb.Cat && 
 			    recOb.Fish == sendOb.Fish && recOb.Monkey == sendOb.Monkey &&
 			    len(recOb.Rat) == 1 && recOb.Rat[0] == sendOb.Rat[0]  
-		}, &recOb)
+		})
 		received = true
 	})
 	defer func() {
@@ -315,14 +320,17 @@ func TestSendReceive(t *testing.T) {
 	comp1 := NewComponent(tst.agents[0])
 	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (string, Predicate, bool) {
-			return "Ciao", True{}, true
+		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
+			return NewTuple("Ciao"), True{}, true
 		})
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg string) bool {
-			return msg == "Ciao"
+		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		    if !msg.IsLong(1){
+		        return false
+		    }
+			return msg.Get(0) == "Ciao"
 		})
 		received = true
 	})
@@ -344,20 +352,26 @@ func TestSendTwoReceive(t *testing.T) {
 	comp2 := NewComponent(tst.agents[1])
 	comp3 := NewComponent(tst.agents[2])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (string, Predicate, bool) {
-			return "Ciao", True{}, true
+		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
+			return NewTuple("Ciao"), True{}, true
 		})
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg string) bool {
-			return msg == "Ciao"
+		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		    if !msg.IsLong(1){
+		        return false
+		    }
+			return msg.Get(0) == "Ciao"
 		})
 		received2 = true
 	})
 	NewProcess(comp3).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg string) bool {
-			return msg == "Ciao"
+		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		    if !msg.IsLong(1){
+		        return false
+		    }
+			return msg.Get(0) == "Ciao"
 		})
 		received3 = true
 	})
@@ -380,23 +394,29 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 	comp2 := NewComponent(tst.agents[1])
 	comp3 := NewComponent(tst.agents[2])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (string, Predicate, bool) {
-			return "Ciao", True{}, true
+		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
+			return NewTuple("Ciao"), True{}, true
 		})
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg string) bool {
-			return msg == "Ciao"
+		p.Receive(NoPre(), func(attr *Attributes, t Tuple) bool {
+		    if !t.IsLong(1){
+		        return false
+		    }
+			return t.Get(0) == "Ciao"
 		})
 		received2 = true
-		p.Send(func(*Attributes) (string, Predicate, bool) {
-			return "Ciaone", True{}, true
+		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
+			return NewTuple("Ciaone"), True{}, true
 		})
 	})
 	NewProcess(comp3).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg string) bool {
-			return msg == "Ciaone"
+		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		    if !msg.IsLong(1){
+		        return false
+		    }
+			return msg.Get(0) == "Ciaone"
 		})
 		if !received2 {
 			t.Error("comp2 must have received before me!")

@@ -2,8 +2,6 @@ package goat
 
 import (
 	"time"
-	"encoding/json"
-    "encoding/base64"
 )
 
 /*
@@ -87,7 +85,7 @@ message satisfies the accept condition. aware and accept can alter the attribute
 (attr), but if the message is not accepted any change to them will be lost.
 */
 func (p *Process) Receive(aware func(attr *Attributes) bool,
-	accept func(attr *Attributes, msg string) bool) {
+	accept func(attr *Attributes, msg Tuple) bool) {
 
 	p.sendrec(
 		func(attr *Attributes, receiving bool) SendReceive {
@@ -103,7 +101,7 @@ func (p *Process) Receive(aware func(attr *Attributes) bool,
 ReceiveObject behaves like Receive, but it supports objects. Messages that cannot 
 be unmarshaled (using the obj interface as a reference) will be rejected. Pass
 obj by reference, since the received object will be written inside.
-*/
+*//*
 func (p *Process) ReceiveObject(aware func(attr *Attributes) bool,
 	accept func(attr *Attributes) bool, obj interface{}) {
 	    p.Receive(aware, func(attr *Attributes, sData64 string) bool{
@@ -117,7 +115,7 @@ func (p *Process) ReceiveObject(aware func(attr *Attributes) bool,
 	            return accept(attr)
 	        }
 	    })
-}
+}*/
 
 type srAction int
 
@@ -131,17 +129,17 @@ type SendReceive struct {
 	msg     string
 	msgPred Predicate
 	valid   bool
-	accept  func(*Attributes, string) bool
+	accept  func(*Attributes, Tuple) bool
 }
 
 /*
 ThenSend signals the intention to sent the message msg to the components that
 satisfy the predicate pred.
 */
-func ThenSend(msg string, msgPred Predicate) SendReceive {
+func ThenSend(msg Tuple, msgPred Predicate) SendReceive {
 	return SendReceive{
 		action:  sendAction,
-		msg:     msg,
+		msg:     msg.encode(),
 		msgPred: msgPred,
 		valid:   true,
 	}
@@ -162,7 +160,7 @@ func ThenFail() SendReceive {
 ThenSend signals the intention to accept the message a message that satisfies the
 accept condition.
 */
-func ThenReceive(accept func(*Attributes, string) bool) SendReceive {
+func ThenReceive(accept func(*Attributes, Tuple) bool) SendReceive {
 	return SendReceive{
 		action: receiveAction,
 		accept: accept,
@@ -200,7 +198,7 @@ func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendR
 			nextAction := chooseFnc(attrs, true)
 			if nextAction.action == receiveAction &&
 				attrs.Satisfy(inMsg.Pred) &&
-				nextAction.accept(attrs, inMsg.Message) {
+				nextAction.accept(attrs, decodeTuple(inMsg.Message)) {
 				p.chnAcceptMessage <- true
 				close(chnFailTheSend)
 				return
@@ -267,7 +265,8 @@ sent, according to the return values:
 Note that msgFnc can alter the attributes, but if the message is not sent any
 change to them will be lost.
 */
-func (p *Process) Send(msgFnc func(attr *Attributes) (string, Predicate, bool)) {
+
+func (p *Process) Send(msgFnc func(attr *Attributes) (Tuple, Predicate, bool)) {
 	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
 			return ThenFail()
@@ -284,7 +283,7 @@ func (p *Process) Send(msgFnc func(attr *Attributes) (string, Predicate, bool)) 
 /*
 SendObject acts like Send, but you can return objects that will be converted in JSON.
 Returns the (possble) marshaling error.
-*/
+
 func (p *Process) SendObject(msgFnc func(attr *Attributes) (interface{}, Predicate, bool)) error {
     var err error
     p.Send(
@@ -302,13 +301,13 @@ func (p *Process) SendObject(msgFnc func(attr *Attributes) (interface{}, Predica
             }
         })
     return err
-}
-
+}*/
+/*
 func Messagef(msg string) func(attr *Attributes) (string, Predicate, bool) {
 	return func(attr *Attributes) (string, Predicate, bool) {
 		return msg, True{}, true
 	}
-}
+}*/
 
 /*
 NoPre generates an always true precondition.
@@ -318,21 +317,21 @@ func NoPre() func(attr *Attributes) bool {
 		return true
 	}
 }
-
+/*
 func SaveMessageInto(v *string) func(attr *Attributes, msg string) bool {
 	return func(_ *Attributes, msg string) bool {
 		*v = msg
 		return true
 	}
 }
-
+*/
 /*
 WaitUntilTrue blocks p until the todo condition is true. Any message received
 in the meantime is rejected.
 */
 func (p *Process) WaitUntilTrue(todo func(*Attributes) bool) {
-	todoPrime := func(a *Attributes) (string, Predicate, bool) {
-		return "", False{}, todo(a)
+	todoPrime := func(a *Attributes) (Tuple, Predicate, bool) {
+		return Tuple{}, False{}, todo(a)
 	}
 	p.Send(todoPrime)
 }
