@@ -6,13 +6,13 @@ instantiated by the user. It is designed to allow transactions, but the completi
 of transactions is demanded to the library (according to the AbC semantics).
 */
 type Attributes struct {
-	actual map[string]string
-	changes map[string]string
+	actual map[string]interface{}
+	changes map[string]interface{}
 }
 
 
-func (attr *Attributes) init(attrM map[string]string){
-	attr.actual = map[string]string{}
+func (attr *Attributes) init(attrM map[string]interface{}){
+	attr.actual = map[string]interface{}{}
 	for k, v := range attrM{
 		attr.actual[k] = v
 	}
@@ -24,10 +24,10 @@ has the value v associated, Get(x) returns v, True; otherwise if the attribute x
 has no value associated, it returns "", False. Note that Get takes in account also
 the uncommitted attribute modifications.
 */
-func (attr *Attributes) Get(x string) (string, bool){
-	var out string 
+func (attr *Attributes) Get(x string) (interface{}, bool){
+	var out interface{} 
 	has := false
-	var val string
+	var val interface{}
 	if attr.changes != nil{
 		if val, has = attr.changes[x]; has {
 			out = val
@@ -46,7 +46,7 @@ func (attr *Attributes) Get(x string) (string, bool){
 GetValue behaves like Get called with the same argument, but returns only the first 
 return value (hence the value of attribute x or "" if not set).
 */
-func (attr *Attributes) GetValue(x string) string{
+func (attr *Attributes) GetValue(x string) interface{}{
     val, _ := attr.Get(x)
     return val
 }
@@ -66,9 +66,9 @@ transactions, GetValue(key) == val until one of the following happens:
 * the last committed value of attribute was val1 (where val1 != val), and rollback() is called;
 * a call to Set(key, val2) is performed (where val2 != val).
 */
-func (attr *Attributes) Set(key string, val string){
+func (attr *Attributes) Set(key string, val interface{}){
 	if attr.changes == nil{
-		attr.changes = map[string]string{key: val}
+		attr.changes = map[string]interface{}{key: val}
 	} else {
 		attr.changes[key] = val
 	}

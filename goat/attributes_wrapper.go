@@ -2,7 +2,7 @@ package goat
 
 type AttributesWrapper struct {
 	actual *Attributes
-	changes map[string]string
+	changes map[string]interface{}
 }
 
 func (attr *AttributesWrapper) Init(at *Attributes){
@@ -10,10 +10,10 @@ func (attr *AttributesWrapper) Init(at *Attributes){
 	attr.changes = nil
 }
 
-func (attr *AttributesWrapper) Get(x string) (string, bool){
-	var out string 
+func (attr *AttributesWrapper) Get(x string) (interface{}, bool){
+	var out interface{} 
 	has := false
-	var val string
+	var val interface{}
 	if attr.changes != nil{
 		if val, has = attr.changes[x]; has {
 			out = val
@@ -23,7 +23,7 @@ func (attr *AttributesWrapper) Get(x string) (string, bool){
 	return attr.actual.Get(x)
 }
 
-func (attr *AttributesWrapper) GetValue(x string) string{
+func (attr *AttributesWrapper) GetValue(x string) interface{}{
     val, _ := attr.Get(x)
     return val
 }
@@ -33,9 +33,9 @@ func (attr *AttributesWrapper) Has(x string) bool{
     return has
 }
 
-func (attr *AttributesWrapper) Set(key string, val string){
+func (attr *AttributesWrapper) Set(key string, val interface{}){
 	if attr.changes == nil{
-		attr.changes = map[string]string{key: val}
+		attr.changes = map[string]interface{}{key: val}
 	} else {
 		attr.changes[key] = val
 	}

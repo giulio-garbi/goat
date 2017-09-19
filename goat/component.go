@@ -52,7 +52,7 @@ func NewComponent(agent Agent) *Component {
 NewComponentWithAttributes defines a new component that interacts with the infrastructure whose
 access point is the server URI. The environment is initialized according to attrInit.
 */
-func NewComponentWithAttributes(agent Agent, attrInit map[string]string) *Component {
+func NewComponentWithAttributes(agent Agent, attrInit map[string]interface{}) *Component {
 	c := Component{
 		attributes:           Attributes{},
 		chnMessageToSend:     make(chan messagePredicate),

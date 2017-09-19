@@ -2,19 +2,19 @@ package goat
 
 import (
     "testing"
-    "reflect"
+    //"reflect"
 )
 
 func getPrebuiltAttrs() *Attributes {
     attr := Attributes{}
-    mp := map[string]string{"arg1":"val1"}
+    mp := map[string]interface{}{"arg1":"val1"}
     attr.init(mp)
     return &attr
 }
 
 func TestInitCopies(t *testing.T){
     attr := Attributes{}
-    mp := map[string]string{"arg1":"val1"}
+    mp := map[string]interface{}{"arg1":"val1"}
     attr.init(mp)
     mp["arg1"] = "val2"
     if attr.GetValue("arg1") != "val1" {
@@ -31,7 +31,7 @@ func TestGetExistingValue(t *testing.T){
 
 func TestGetNotExistingValue(t *testing.T){
     attr := getPrebuiltAttrs()
-    if v, exists := attr.Get("nonex"); v != reflect.Zero(reflect.TypeOf(v)).Interface() || exists {
+    if v, exists := attr.Get("nonex"); v != nil || exists {
         t.Fail()
     }
 }
@@ -45,7 +45,7 @@ func TestGetValueExistingValue(t *testing.T){
 
 func TestGetValueNotExistingValue(t *testing.T){
     attr := getPrebuiltAttrs()
-    if v := attr.GetValue("nonex"); v != reflect.Zero(reflect.TypeOf(v)).Interface() {
+    if v := attr.GetValue("nonex"); v != nil {
         t.Fail()
     }
 }

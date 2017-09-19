@@ -2,7 +2,6 @@ package goat
 
 import (
     "fmt"
-    "strconv"
 )
 
 /*
@@ -19,158 +18,112 @@ type Predicate interface {
 Equal represents a predicate that is true iff the receiver component has the
 attributes Attr1 and Attr2 both set and they evaluate to the same value.
 */
-type Equal struct {
-    Attr1 string
-    Attr2 string
+
+type Comp struct {
+    Par1 interface{}
+    IsAttr1 bool
+    Op string
+    Par2 interface{}
+    IsAttr2 bool
 }
-func (eq Equal) Satisfy(attr *Attributes) bool {
-    a1Val, a1Exists := (*attr).Get(eq.Attr1)
-    a2Val, a2Exists := (*attr).Get(eq.Attr2)
-    return a1Exists && a2Exists && (a1Val == a2Val)
+func (eq Comp) Satisfy(attr *Attributes) bool {
+    a1Val, a1Exists := toValue(attr, eq.Par1, eq.IsAttr1)
+    a2Val, a2Exists := toValue(attr, eq.Par2, eq.IsAttr2)
+    if !a1Exists || !a2Exists {
+        return false
+    }
+    switch a1 := a1Val.(type){
+        case int:{
+            a2, isA2Int := a2Val.(int)
+            if isA2Int{
+                switch eq.Op {
+                    case "==":
+                        return a1 == a2
+                    case "!=":
+                        return a1 != a2
+                    case "<":
+                        return a1 < a2
+                    case "<=":
+                        return a1 <= a2
+                    case ">":
+                        return a1 > a2
+                    case ">=":
+                        return a1 >= a2
+                }
+            }
+        }
+        case string:{
+            a2, isA2String := a2Val.(string)
+            if isA2String{
+                switch eq.Op {
+                    case "==":
+                        return a1 == a2
+                    case "!=":
+                        return a1 != a2
+                    case "<":
+                        return a1 < a2
+                    case "<=":
+                        return a1 <= a2
+                    case ">":
+                        return a1 > a2
+                    case ">=":
+                        return a1 >= a2
+                }
+            }
+        }
+        case bool:{
+            a2, isA2Bool := a2Val.(bool)
+            if isA2Bool{
+                switch eq.Op {
+                    case "==":
+                        return a1 == a2
+                    case "!=":
+                        return a1 != a2
+                }
+            }
+        }
+    }
+    return false
 }
-func (eq Equal) ImmediateSatisfy() (bool, bool) {
+func (eq Comp) ImmediateSatisfy() (bool, bool) {
     return false, false
 }
-func (eq Equal) String() string {
-    return fmt.Sprintf("=(%s,%s)", escape(eq.Attr1), escape(eq.Attr2))
+func (eq Comp) String() string {
+    return fmt.Sprintf("%s(%s,%s)", GetOpLetter(eq.Op), escapeWithType(eq.Par1, eq.IsAttr1), escapeWithType(eq.Par2, eq.IsAttr2))
 }
 
-/*
-EqualImm represents a predicate that is true iff the receiver component has the
-attribute Attr set to Val.
-*/
-type EqualImm struct {
-    Attr string
-    Val string
-}
-func (eq EqualImm) Satisfy(attr *Attributes) bool {
-    aVal, aExists := (*attr).Get(eq.Attr)
-    return aExists && (aVal == eq.Val)
-}
-func (eq EqualImm) ImmediateSatisfy() (bool, bool) {
-    return false, false
-}
-func (eq EqualImm) String() string {
-    return fmt.Sprintf("E(%s,%s)", escape(eq.Attr), escape(eq.Val))
+func GetOpLetter(op string) string{
+    switch op {
+        case "==":
+            return "="
+        case "!=":
+            return "N"
+        case "<", ">":
+            return op
+        case "<=":
+            return "l"
+        case ">=":
+            return "g"
+        default: //ERROR
+            return "Q"
+    }
 }
 
-type NotEqualImm struct {
-    Attr string
-    Val string
-}
-func (eq NotEqualImm) Satisfy(attr *Attributes) bool {
-    aVal, aExists := (*attr).Get(eq.Attr)
-    return aExists && (aVal != eq.Val)
-}
-func (eq NotEqualImm) ImmediateSatisfy() (bool, bool) {
-    return false, false
-}
-func (eq NotEqualImm) String() string {
-    return fmt.Sprintf("N(%s,%s)", escape(eq.Attr), escape(eq.Val))
-}
-
-type LowerImm struct {
-    Attr string
-    Val string
-}
-func (eq LowerImm) Satisfy(attr *Attributes) bool {
-    aVal, aExists := (*attr).Get(eq.Attr)
-    if !aExists {
-        return false
+func GetLetterOp(letter string) string{
+    switch letter {
+        case "=":
+            return "=="
+        case "N":
+            return "!="
+        case "<", ">":
+            return letter
+        case "l":
+            return "<="
+        case "g":
+            return ">="
+        default: //ERROR
+            return "@ERR@"
     }
-    aInt, err := strconv.Atoi(aVal)
-    if err != nil {
-        return false
-    }
-    vInt, err := strconv.Atoi(eq.Val)
-    if err != nil {
-        return false
-    }
-    return aInt < vInt
-}
-func (eq LowerImm) ImmediateSatisfy() (bool, bool) {
-    return false, false
-}
-func (eq LowerImm) String() string {
-    return fmt.Sprintf("l(%s,%s)", escape(eq.Attr), escape(eq.Val))
-}
-
-type LowerEqualImm struct {
-    Attr string
-    Val string
-}
-func (eq LowerEqualImm) Satisfy(attr *Attributes) bool {
-    aVal, aExists := (*attr).Get(eq.Attr)
-    if !aExists {
-        return false
-    }
-    aInt, err := strconv.Atoi(aVal)
-    if err != nil {
-        return false
-    }
-    vInt, err := strconv.Atoi(eq.Val)
-    if err != nil {
-        return false
-    }
-    return aInt <= vInt
-}
-func (eq LowerEqualImm) ImmediateSatisfy() (bool, bool) {
-    return false, false
-}
-func (eq LowerEqualImm) String() string {
-    return fmt.Sprintf("L(%s,%s)", escape(eq.Attr), escape(eq.Val))
-}
-
-type GreaterImm struct {
-    Attr string
-    Val string
-}
-func (eq GreaterImm) Satisfy(attr *Attributes) bool {
-    aVal, aExists := (*attr).Get(eq.Attr)
-    if !aExists {
-        return false
-    }
-    aInt, err := strconv.Atoi(aVal)
-    if err != nil {
-        return false
-    }
-    vInt, err := strconv.Atoi(eq.Val)
-    if err != nil {
-        return false
-    }
-    return aInt > vInt
-}
-func (eq GreaterImm) ImmediateSatisfy() (bool, bool) {
-    return false, false
-}
-func (eq GreaterImm) String() string {
-    return fmt.Sprintf("g(%s,%s)", escape(eq.Attr), escape(eq.Val))
-}
-
-type GreaterEqualImm struct {
-    Attr string
-    Val string
-}
-func (eq GreaterEqualImm) Satisfy(attr *Attributes) bool {
-    aVal, aExists := (*attr).Get(eq.Attr)
-    if !aExists {
-        return false
-    }
-    aInt, err := strconv.Atoi(aVal)
-    if err != nil {
-        return false
-    }
-    vInt, err := strconv.Atoi(eq.Val)
-    if err != nil {
-        return false
-    }
-    return aInt >= vInt
-}
-func (eq GreaterEqualImm) ImmediateSatisfy() (bool, bool) {
-    return false, false
-}
-func (eq GreaterEqualImm) String() string {
-    return fmt.Sprintf("G(%s,%s)", escape(eq.Attr), escape(eq.Val))
 }
 
 /*
@@ -280,34 +233,10 @@ func ToPredicate(s string) (Predicate, error){
 func toPredicateInt(s string, from int) (Predicate, int, error) {
     escapedS := (s)
     switch s[from: from+2] {
-        case "=(":
-            attr1, commaPos := unescape(escapedS, from+2)
-            attr2, bracketPos := unescape(escapedS, commaPos+1)
-            return Equal{attr1, attr2}, bracketPos+1, nil
-        case "E(":
-            attr, commaPos := unescape(escapedS, from+2)
-            val, bracketPos := unescape(escapedS, commaPos+1)
-            return EqualImm{attr, val}, bracketPos+1, nil
-        case "N(":
-            attr, commaPos := unescape(escapedS, from+2)
-            val, bracketPos := unescape(escapedS, commaPos+1)
-            return NotEqualImm{attr, val}, bracketPos+1, nil
-        case "l(":
-            attr, commaPos := unescape(escapedS, from+2)
-            val, bracketPos := unescape(escapedS, commaPos+1)
-            return LowerImm{attr, val}, bracketPos+1, nil
-        case "L(":
-            attr, commaPos := unescape(escapedS, from+2)
-            val, bracketPos := unescape(escapedS, commaPos+1)
-            return LowerEqualImm{attr, val}, bracketPos+1, nil
-        case "g(":
-            attr, commaPos := unescape(escapedS, from+2)
-            val, bracketPos := unescape(escapedS, commaPos+1)
-            return GreaterImm{attr, val}, bracketPos+1, nil
-        case "G(":
-            attr, commaPos := unescape(escapedS, from+2)
-            val, bracketPos := unescape(escapedS, commaPos+1)
-            return GreaterEqualImm{attr, val}, bracketPos+1, nil
+        case "=(", "N(", "l(", "<(", "g(", ">(":
+            attr1, is1Attr, commaPos := unescapeWithType(escapedS, from+2)
+            attr2, is2Attr, bracketPos := unescapeWithType(escapedS, commaPos+1)
+            return Comp{attr1, is1Attr, GetLetterOp(s[from:from+1]), attr2, is2Attr}, bracketPos+1, nil
         case "&(":
             p1, commaPos, _ := toPredicateInt(s, from+2)
             p2, bracketPos, _ := toPredicateInt(s, commaPos+1)

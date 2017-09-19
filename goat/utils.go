@@ -54,6 +54,73 @@ func ltp(num int) (net.Listener, int){
     return listener, listeningPort
 }
 
+func escapeWithType(x interface{}, isXAttr bool) string{
+    if isXAttr {
+        return escape("A("+x.(string)+")")
+    } else {
+        switch val := x.(type) {
+            case string:
+                return escape("S("+val+")")
+            case int:
+                return escape("I("+itoa(val)+")")
+            case bool:
+                if val {
+                    return escape("B(true)")
+                } else {
+                    return escape("B(false)")
+                }
+            default: //TODO gob!
+                return escape("X")
+        }
+    }
+}
+
+func unescapeWithType(s string, from int) (interface{}, bool, int) {
+    switch s[from] {
+        case 'A':
+        {
+            atName, next := unescape(s, from+2)
+            return atName, true, next
+        }
+        case 'S':
+        {
+            str, next := unescape(s, from+2)
+            return str, false, next
+        }
+        case 'I':
+        {
+            nbr, next := unescape(s, from+2)
+            return atoi(nbr), false, next
+        }
+        case 'B':
+        {
+            bval, next := unescape(s, from+2)
+            switch bval{
+                case "true":
+                    return true, false, next
+                case "false":
+                    return false, false, next
+                default:
+                    panic(bval+" is not a valid boolean!")
+            }
+        }
+        case 'X': //TODO gob!
+        {
+            return nil, false, from+1
+        }
+        default:
+            panic(s[from:]+": invalid value or attribute!")
+    }
+}
+
+func toValue(attr *Attributes, x interface{}, isXAttr bool) (interface{}, bool){
+    if isXAttr {
+        return (*attr).Get(x.(string))
+    } else {
+        return x, true
+    }
+}
+
 func escape(s string) string {
     rpl := strings.NewReplacer("\\","\\\\"," ","\\_",",","\\,",")","\\)","\n","\\n")
     return rpl.Replace(s)
