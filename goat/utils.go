@@ -226,3 +226,20 @@ func newNetAddress(addr string) netAddress{
     na.Host, na.Port, _ = net.SplitHostPort(addr)
     return na
 }
+
+func ToString(x interface{}) string {
+    switch itm := x.(type){
+        case int:
+            return goat.itoa(itm)
+        case bool:
+            if itm {
+                return "true"
+            } else {
+                return "false"
+            }
+        case string:
+            return itm
+        default:
+            return "interface{}"
+    }
+}
