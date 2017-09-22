@@ -230,7 +230,7 @@ func newNetAddress(addr string) netAddress{
 func ToString(x interface{}) string {
     switch itm := x.(type){
         case int:
-            return goat.itoa(itm)
+            return itoa(itm)
         case bool:
             if itm {
                 return "true"
