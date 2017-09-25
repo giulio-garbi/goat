@@ -7,6 +7,7 @@ import (
     "strings"
     "bufio"
     "time"
+    "reflect"
 )
 
 func itoa(n int) string {
@@ -242,4 +243,61 @@ func ToString(x interface{}) string {
         default:
             return "interface{}"
     }
+}
+
+func Cmp(a interface{}, op string, b interface{}) bool {
+    ia, isAint := a.(int)
+    ib, isBint := b.(int)
+    if isAint && isBint {
+        switch op{
+            case "<":
+                return ia < ib
+            case "<=":
+                return ia <= ib
+            case ">":
+                return ia > ib
+            case ">=":
+                return ia >= ib
+            case "==":
+                return ia == ib
+            case "!=":
+                return ia != ib
+            default:
+                panic("Unknown operator "+op+" between int and int")
+        }
+    }
+    sa, isAstring := a.(string)
+    sb, isBstring := b.(string)
+    if isAstring && isBstring {
+        switch op{
+            case "<":
+                return sa < sb
+            case "<=":
+                return sa <= sb
+            case ">":
+                return sa > sb
+            case ">=":
+                return sa >= sb
+            case "==":
+                return sa == sb
+            case "!=":
+                return sa != sb
+            default:
+                panic("Unknown operator "+op+" between string and string")
+        }
+    }
+    ba, isAbool := a.(bool)
+    bb, isBbool := b.(bool)
+    if isAbool && isBbool {
+        switch op{
+            case "==":
+                return ba == bb
+            case "!=":
+                return ba != bb
+            default:
+                panic("Unknown operator "+op+" between bool and bool")
+        }
+    }
+    
+    panic("Unknown operator "+op+" between "+reflect.TypeOf(a).String()+" and "+reflect.TypeOf(b).String())
 }
