@@ -57,18 +57,18 @@ func ltp(num int) (net.Listener, int){
 
 func escapeWithType(x interface{}, isXAttr bool) string{
     if isXAttr {
-        return escape("A("+x.(string)+")")
+        return escape("A|"+x.(string))
     } else {
         switch val := x.(type) {
             case string:
-                return escape("S("+val+")")
+                return escape("S|"+val)
             case int:
-                return escape("I("+itoa(val)+")")
+                return escape("I|"+itoa(val))
             case bool:
                 if val {
-                    return escape("B(true)")
+                    return escape("B|true")
                 } else {
-                    return escape("B(false)")
+                    return escape("B|false")
                 }
             default: //TODO gob!
                 return escape("X")
