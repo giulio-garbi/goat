@@ -80,7 +80,7 @@ func (ssa *SingleServerAgent) doIncomingProcess(chnRegistered chan<- bool) {
                     Id: mid,
                     //componentId: cid,
                     Pred: pred,
-                    Message: params[3],
+                    Message: decodeTuple(params[3]),
                 }
                 ssa.chnInbox <- inMsg
         }
@@ -96,7 +96,7 @@ func (ssa *SingleServerAgent) doOutcomingProcess() {
         select {
         	// TODO: send only when nid >= msg.id
             case msgToSend := <- ssa.chnOutbox:
-                ssa.sendToServer("DATA", itoa(msgToSend.Id), itoa(ssa.componentId), msgToSend.Pred.String(), msgToSend.Message )
+                ssa.sendToServer("DATA", itoa(msgToSend.Id), itoa(ssa.componentId), msgToSend.Pred.String(), msgToSend.Message.encode() )
             case <- ssa.chnGetMid:
                 ssa.sendToServer("REQ", itoa(ssa.componentId))
         }

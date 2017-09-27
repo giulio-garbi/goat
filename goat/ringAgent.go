@@ -80,7 +80,7 @@ func (ca *RingAgent) doIncomingProcess(chnRegistered chan<- struct{}) {
                         Id: mid,
                         //componentId: cid,
                         Pred: pred,
-                        Message: params[3],
+                        Message: decodeTuple(params[3]),
                     }
                     ca.chnInbox <- inMsg
                 }
@@ -94,7 +94,7 @@ func (ca *RingAgent) doOutcomingProcess() {
     for {
         select {
             case msgToSend := <- ca.chnOutbox:
-                sendToAddress(ca.nodeAddress, "DATA", itoa(msgToSend.Id), itoa(ca.componentId), msgToSend.Pred.String(), msgToSend.Message )
+                sendToAddress(ca.nodeAddress, "DATA", itoa(msgToSend.Id), itoa(ca.componentId), msgToSend.Pred.String(), msgToSend.Message.encode() )
             case <- ca.chnGetMid:
                 sendToAddress(ca.nodeAddress, "REQ", itoa(ca.componentId))
         }

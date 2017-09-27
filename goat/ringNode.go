@@ -2,7 +2,6 @@ package goat
 
 import (
     "net"
-    "fmt"
     "math/rand"
     "time"
 )
@@ -45,7 +44,7 @@ func (rar *RingAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
             agAddr := rar.queuedAgents[0]
             agCompId := itoa(rar.compId)
             rar.compId++
-            fmt.Println("Registering component", agCompId)
+            dprintln("Registering component", agCompId)
             // Random assignment policy!
             ndAddr := rar.nodesAddresses[rand.New(src).Intn(len(rar.nodesAddresses))]
             sendTo(ndAddr, "newAgent", agCompId, agAddr.String())

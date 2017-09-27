@@ -1,7 +1,6 @@
 package goat
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -77,7 +76,7 @@ func NewComponentWithAttributes(agent Agent, attrInit map[string]interface{}) *C
 	//c.ncomm = netCommunicationInitAndRun(server)
 	//c.agent = NewSingleServerAgent(server)
 	c.agent.Start()
-	fmt.Println(c.agent.GetComponentId(),"started")
+	dprintln(c.agent.GetComponentId(),"started")
 	//c.nid = c.ncomm.firstMessageId
 	c.nid = c.agent.GetFirstMessageId()
 
@@ -100,20 +99,20 @@ func (c *Component) sendMessage(messageToSend messagePredicate, mid int) int {
 	var msgWithMid Message
 	if messageToSend.invalid {
 		msgWithMid = Message{
-			Message:   "",
+			Message:   NewTuple(),
 			Pred: False{},
 			Id:        mid,
 		}
 	} else {
 		msgWithMid = Message{
-			Message:   messageToSend.message,
+			Message:   decodeTuple(messageToSend.message),
 			Pred: messageToSend.predicate,
 			Id:        mid,
 		}
 	}
 	c.chnEvtMessageSent <- mid
 	if _, ok := msgWithMid.Pred.(False); !ok {
-		fmt.Println("Sending", c.agent.GetComponentId(), "->", msgWithMid.Message, "[", msgWithMid.Id, "]")
+		dprintln("Sending", c.agent.GetComponentId(), "->", msgWithMid.Message, "[", msgWithMid.Id, "]")
 	}
 	//c.ncomm.chnOutbox <- msgWithMid
 	c.agent.Outbox() <- msgWithMid
@@ -154,7 +153,7 @@ func (c *Component) readMessageGoroutine() {
 				componentStarted = true
 				if c.nid == midToWait {
 					close(c.chnClearToSend)
-					fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
+					dprintln(c.agent.GetComponentId(), "CTS", midToWait)
 					c.chnClearToSend = make(chan struct{})
 					midToWait = -1
 				}
@@ -171,7 +170,7 @@ func (c *Component) readMessageGoroutine() {
 			case midToWait = <-c.chnWaitForMid:
 				if c.nid == midToWait {
 					close(c.chnClearToSend)
-					fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
+					dprintln(c.agent.GetComponentId(), "CTS", midToWait)
 					c.chnClearToSend = make(chan struct{})
 					midToWait = -1
 				}
@@ -185,7 +184,7 @@ func (c *Component) readMessageGoroutine() {
 				c.nid++
 				if c.nid == midToWait {
 					close(c.chnClearToSend)
-					fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
+					dprintln(c.agent.GetComponentId(), "CTS", midToWait)
 					c.chnClearToSend = make(chan struct{})
 					midToWait = -1
 				}
@@ -212,7 +211,7 @@ func (c *Component) readMessageGoroutine() {
 					case midToWait = <-c.chnWaitForMid:
 						if c.nid == midToWait {
 							close(c.chnClearToSend)
-							fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
+							dprintln(c.agent.GetComponentId(), "CTS", midToWait)
 							c.chnClearToSend = make(chan struct{})
 							midToWait = -1
 						}
@@ -228,7 +227,7 @@ func (c *Component) readMessageGoroutine() {
 							sentMsg = true
 							if c.nid == midToWait {
 								close(c.chnClearToSend)
-								fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
+								dprintln(c.agent.GetComponentId(), "CTS", midToWait)
 								c.chnClearToSend = make(chan struct{})
 								midToWait = -1
 							}
@@ -238,7 +237,7 @@ func (c *Component) readMessageGoroutine() {
 					case midToWait = <-c.chnWaitForMid:
 						if c.nid == midToWait {
 							close(c.chnClearToSend)
-							fmt.Println(c.agent.GetComponentId(), "CTS", midToWait)
+							dprintln(c.agent.GetComponentId(), "CTS", midToWait)
 							c.chnClearToSend = make(chan struct{})
 							midToWait = -1
 						}
@@ -296,8 +295,8 @@ func (c *Component) sendMessageToProcesses(messageToDeliver Message) {
 				if rAccepted {
 					anyUpdates := c.attributes.commit()
 					c.chnEvtMessageSent <- messageToDeliver.Id
-					fmt.Println(c.attributes)
-					fmt.Println("Accepted", c.agent.GetComponentId(), "<-", messageToDeliver.Message, "[", messageToDeliver.Id, "]")
+					dprintln(c.attributes)
+					dprintln("Accepted", c.agent.GetComponentId(), "<-", messageToDeliver.Message, "[", messageToDeliver.Id, "]")
 					if anyUpdates {
 						close(c.chnUpdateEvent)
 						c.chnUpdateEvent = make(chan struct{})
@@ -336,7 +335,7 @@ func (c *Component) sendMessageFromProcess() {
 			c.sendMessageToProcesses(messageToDeliver)
 		case <-cts:
 			readyToSend = true
-			fmt.Println(c.attributes)
+			dprintln(c.attributes)
 		}
 	}
 	//fmt.Println(c.ncomm.componentId, "smfp+")
@@ -411,189 +410,3 @@ func (c *Component) onSubscribe(p *Process) {
 	}
 	c.subscribedProcesses[p] = struct{}{}
 }
-
-//
-//func (c *Component) _componentGoroutine(){
-////	for{
-//		var messageToDeliver inMessage
-//		var mtdRecipients []*Process = nil
-//
-//		var chnProcessAcceptedMessage chan bool = nil
-//		idxProcessAcceptedMessage := -1
-//		chnUpdateEvent := make(chan struct{})
-//
-//		selectNextProcess := func(idx int) int{
-//			for ; idx<len(mtdRecipients); idx++{
-//				//fmt.Println(c.ncomm.componentId,"pidx",idx,"?", len(mtdRecipients))
-//				var sub bool
-//				if _, sub = c.subscribedProcesses[mtdRecipients[idx]]; sub {
-//					//fmt.Println(c.ncomm.componentId,"pidx",idx,"sub",sub)
-//					return idx
-//				}
-//				//fmt.Println(c.ncomm.componentId,"pidx",idx,"sub",sub)
-//			}
-//			return -1
-//		}
-//
-//		chnGetAttributes := c.chnGetAttributes
-//		allowSend := func(permit bool){
-//			if permit {
-//				chnGetAttributes = c.chnGetAttributes
-//			} else {
-//				chnGetAttributes = nil
-//			}
-//		}
-//
-//		chnComponentInbox := c.chnComponentInbox
-//		allowReceive := func(permit bool){
-//			if permit {
-//				chnComponentInbox = c.chnComponentInbox
-//			} else {
-//				chnComponentInbox = make(chan inMessage)
-//			}
-//		}
-//
-//		for {
-//			select{
-//				case messageToDeliver = <- chnComponentInbox:
-//					allowReceive(false)
-//					allowSend(false)
-//					mtdRecipients = make([]*Process, len(c.subscribedProcesses))
-//					i := 0
-//					for proc := range c.subscribedProcesses{
-//						mtdRecipients[i] = proc
-//						i++
-//					}
-//					idxProcessAcceptedMessage = -1
-//					idxProcessAcceptedMessage = selectNextProcess(0)
-//					if idxProcessAcceptedMessage >= 0{
-//						chnProcessAcceptedMessage = mtdRecipients[idxProcessAcceptedMessage].chnAcceptMessage
-//						go func(recipient *Process){
-//							//fmt.Println("Sending to proc idx",idxProcessAcceptedMessage)
-//							recipient.chnMessage <-
-//								attributesInMessage{
-//									attribs : &c.attributes,
-//									inMsg: messageToDeliver,
-//								}
-//							//fmt.Println("Sent to proc idx",idxProcessAcceptedMessage)
-//						}(mtdRecipients[idxProcessAcceptedMessage])
-//					} else {
-//						allowReceive(true)
-//						allowSend(true)
-//					}
-//
-//				case msgAccepted := <- chnProcessAcceptedMessage:
-//					if msgAccepted {
-//						anyUpdates := c.attributes.commit()
-//						if anyUpdates {
-//							close(chnUpdateEvent)
-//							chnUpdateEvent = make(chan struct{})
-//						}
-//					} else {
-//						c.attributes.rollback()
-//						//c.chnUpdateEventToProc <- chnUpdateEvent
-//					}
-//					idxProcessAcceptedMessage = selectNextProcess(idxProcessAcceptedMessage + 1)
-//					if msgAccepted || idxProcessAcceptedMessage == -1{
-//						allowReceive(true)
-//						allowSend(true)
-//					} else {
-//						chnProcessAcceptedMessage = mtdRecipients[idxProcessAcceptedMessage].chnAcceptMessage
-//						go func(recipient *Process){
-//							//fmt.Println("pidx",idxProcessAcceptedMessage)
-//							recipient.chnMessage <-
-//								attributesInMessage{
-//									attribs : &c.attributes,
-//									inMsg: messageToDeliver,
-//								}
-//						}(mtdRecipients[idxProcessAcceptedMessage])
-//					}
-//
-//				case messageToSend := <- c.chnMessageToSend:
-//					if !messageToSend.invalid{
-//						msgId := c.sendMessage(messageToSend)
-//
-//						if mid, hmd :=  c.attributes.Get("mid"); hmd {
-//							fmt.Println("m", mid, "sent", messageToSend.message, msgId)
-//						}
-//						if wid, hmd :=  c.attributes.Get("wid"); hmd {
-//							fmt.Println("w", wid, "sent", messageToSend.message, msgId)
-//						}
-//
-//						anyUpdates := c.attributes.commit()
-//						if anyUpdates {
-//							close(chnUpdateEvent)
-//							chnUpdateEvent = make(chan struct{})
-//						}
-//					} else {
-//						c.attributes.rollback()
-//						c.chnUpdateEventToProc <- chnUpdateEvent
-//					}
-//					allowReceive(true)
-//					allowSend(true)
-//
-//				case chnGetAttributes <- &c.attributes:
-//					allowReceive(false)
-//					allowSend(false)
-//
-//				case p := <- c.chnSubscribe:
-//					c.subscribedProcesses[p] = struct{}{}
-//
-//				case p := <- c.chnUnsubscribe:
-//					delete(c.subscribedProcesses, p)
-//					if idxProcessAcceptedMessage >= 0 && mtdRecipients[idxProcessAcceptedMessage] == p{
-//						fmt.Println("Unsubscribing the listener")
-//						idxProcessAcceptedMessage = selectNextProcess(idxProcessAcceptedMessage+1)
-//						if idxProcessAcceptedMessage == -1{
-//							chnProcessAcceptedMessage = nil
-//							allowReceive(true)
-//							allowSend(true)
-//						} else {
-//							chnProcessAcceptedMessage = mtdRecipients[idxProcessAcceptedMessage].chnAcceptMessage
-//							go func(recipient *Process){
-//								//fmt.Println("pidx",idxProcessAcceptedMessage)
-//								recipient.chnMessage <-
-//									attributesInMessage{
-//										attribs : &c.attributes,
-//										inMsg: messageToDeliver,
-//									}
-//							}(mtdRecipients[idxProcessAcceptedMessage])
-//						}
-//					}
-//			}
-//		}
-//	//}
-//}
-
-/*
-func (c *Component) updateAttributes(update UpdateFunction, retry bool) bool{
-	for{
-		c.attributesMutex.Lock()
-		// TODO attribute
-		wasAble := false
-		somethingChanged := false
-		c.attributesMutex.Unlock()
-		if wasAble && somethingChanged{
-			condAttributeChanged.Broadcast()
-		}
-		if !retry || wasAble {
-
-			return wasAble
-		} else {
-			condAttributeChanged.Wait()
-		}
-	}
-	return false
-}
-
-func (c *Component) getAttributes(attributes... string)map[string]string{
-	mp := map[string]string{}
-	c.attributesMutex.Lock()
-	defer c.attributesMutex.Unlock()
-	for _, attr := range attributes {
-		if val, has := c.attributes[attr]; has {
-			mp[attr] = val
-		}
-	}
-	return mp
-}*/

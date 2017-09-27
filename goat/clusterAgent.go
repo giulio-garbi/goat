@@ -79,7 +79,7 @@ func (ca *ClusterAgent) doIncomingProcess(chnRegistered chan<- struct{}) {
                         Id: mid,
                         //componentId: cid,
                         Pred: pred,
-                        Message: params[3],
+                        Message: decodeTuple(params[3]),
                     }
                     ca.chnInbox <- inMsg
                 }
@@ -93,7 +93,7 @@ func (ca *ClusterAgent) doOutcomingProcess() {
     for {
         select {
             case msgToSend := <- ca.chnOutbox:
-                sendTo(ca.messageQueueAddress, "add", "DATA", itoa(msgToSend.Id), itoa(ca.componentId), msgToSend.Pred.String(), msgToSend.Message )
+                sendTo(ca.messageQueueAddress, "add", "DATA", itoa(msgToSend.Id), itoa(ca.componentId), msgToSend.Pred.String(), msgToSend.Message.encode() )
             case <- ca.chnGetMid:
                 sendTo(ca.messageQueueAddress, "add", "REQ", itoa(ca.componentId))
         }

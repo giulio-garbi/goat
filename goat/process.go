@@ -198,7 +198,7 @@ func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendR
 			nextAction := chooseFnc(attrs, true)
 			if nextAction.action == receiveAction &&
 				attrs.Satisfy(inMsg.Pred) &&
-				nextAction.accept(attrs, decodeTuple(inMsg.Message)) {
+				nextAction.accept(attrs, inMsg.Message) {
 				p.chnAcceptMessage <- true
 				close(chnFailTheSend)
 				return

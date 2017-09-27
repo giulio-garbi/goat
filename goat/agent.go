@@ -2,7 +2,7 @@ package goat
 
 type Message struct {
     Id int
-    Message string
+    Message Tuple
     Pred Predicate
 }
 
