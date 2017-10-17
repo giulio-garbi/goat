@@ -182,16 +182,12 @@ func receiveWithAddressTimeout(listener net.Listener, msec int64, timedOut *bool
     var conn net.Conn
     var err error
     chnAccepted := make(chan struct{})
-    var chnTimeout <-chan time.Time
+    
     go func(){
         conn, err = listener.Accept()
         close(chnAccepted)
     }()
-    if(msec > 0){
-        chnTimeout = time.After(time.Duration(msec) * time.Millisecond)
-    } else {
-        chnTimeout = make(chan time.Time)
-    }
+    chnTimeout := timeout(msec)
     select{
         case <- chnAccepted:
             *timedOut = false
@@ -300,4 +296,12 @@ func Cmp(a interface{}, op string, b interface{}) bool {
     }
     
     panic("Unknown operator "+op+" between "+reflect.TypeOf(a).String()+" and "+reflect.TypeOf(b).String())
+}
+
+func timeout(msec int64) <-chan time.Time{
+    if msec > 0 {
+        return time.After(time.Duration(msec) * time.Millisecond)
+    } else {
+        return make(chan time.Time)
+    }
 }

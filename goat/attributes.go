@@ -47,7 +47,10 @@ GetValue behaves like Get called with the same argument, but returns only the fi
 return value (hence the value of attribute x or "" if not set).
 */
 func (attr *Attributes) GetValue(x string) interface{}{
-    val, _ := attr.Get(x)
+    val, has := attr.Get(x)
+    if !has{
+        panic("Attribute "+x+" not set")
+    }
     return val
 }
 

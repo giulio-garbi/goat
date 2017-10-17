@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 )
 
 type CentralServer struct {
@@ -14,6 +13,7 @@ type CentralServer struct {
 	compAddresses        map[int]string
 	listener             net.Listener
 	messagesActuallySent int
+	proposalsActuallySent int
 }
 
 func (srv *CentralServer) sendToComponent(cid int, tokens ...string) {
@@ -63,12 +63,17 @@ func (srv *CentralServer) GetMessagesSent() int {
 	return srv.messagesActuallySent
 }
 
+func (srv *CentralServer) GetProposalsSent() int {
+	return srv.proposalsActuallySent
+}
+
 func RunCentralServer(port int, term chan struct{}, msec int64) *CentralServer {
 	srv := CentralServer{
 		nextCompId:           0,
 		nextMsgId:            0,
 		compAddresses:        map[int]string{},
 		messagesActuallySent: 0,
+		proposalsActuallySent: 0,
 	}
 	srv.listener, _ = net.Listen("tcp", ":"+itoa(port))
 	go func() {
@@ -83,7 +88,7 @@ func RunCentralServer(port int, term chan struct{}, msec int64) *CentralServer {
 			}()
 			select {
 			case <-ok:
-			case <-time.After(time.Duration(msec) * time.Millisecond):
+			case <-timeout(msec):
 				close(term)
 				return
 			}
@@ -98,6 +103,10 @@ func RunCentralServer(port int, term chan struct{}, msec int64) *CentralServer {
 				senderid := atoi(params[1])
 				if params[2] != "FF" {
 					srv.messagesActuallySent++
+					tuple := decodeTuple(params[3])
+					if tuple.Get(0) == "propose" {
+					    srv.proposalsActuallySent++
+					}
 				}
 				for cid := range srv.compAddresses {
 					if senderid != cid {

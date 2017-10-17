@@ -29,6 +29,7 @@ type Comp struct {
 func (eq Comp) Satisfy(attr *Attributes) bool {
     a1Val, a1Exists := toValue(attr, eq.Par1, eq.IsAttr1)
     a2Val, a2Exists := toValue(attr, eq.Par2, eq.IsAttr2)
+    //fmt.Println(eq.Par1, eq.IsAttr1, a1Val, a1Exists, eq.Op, eq.Par2, eq.IsAttr2, a2Val, a2Exists)
     if !a1Exists || !a2Exists {
         return false
     }
