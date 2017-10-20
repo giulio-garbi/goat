@@ -292,6 +292,37 @@ func (p *Process) Send(msg Tuple, pr Predicate){
 	}, false)
 }
 
+type selectcase struct{
+    pred Predicate
+    action SendReceive
+    then func()
+}
+
+func Nothing() {}
+
+func Case(pred Predicate, action SendReceive, then func()) selectcase{
+    return selectcase{pred, action, then}
+}
+
+func (p *Process) Select(cases ...selectcase){
+    var caseN int
+    p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+        for i, casei := range cases{
+            if casei.pred.CloseUnder(attr).Satisfy(attr){
+                wantsToReceive := casei.action.action == sendAction
+		        if receiving != wantsToReceive {
+			        return ThenFail()
+		        } else {
+		            caseN = i
+		            return casei.action
+		        }
+		    }
+	    }
+	    return ThenFail()
+	}, false)
+	cases[caseN].then()
+}
+
 /*
 SendObject acts like Send, but you can return objects that will be converted in JSON.
 Returns the (possble) marshaling error.
