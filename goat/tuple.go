@@ -23,6 +23,21 @@ func (t *Tuple) Get(x int) interface{}{
     return t.Elems[x]
 }
 
+func (t *Tuple) CloseUnder(attr *Attributes) Tuple{
+    el := make([]interface{}, len(t.Elems))
+    for i, v := range t.Elems {
+        switch castv := v.(type){
+            case compattr: {
+                el[i] = attr.GetValue(castv.name)
+            }
+            default: {
+                el[i] = castv
+            }
+        }
+    }
+    return Tuple{el}
+}
+
 func (t *Tuple) encode() string{
     var network bytes.Buffer
 	enc := gob.NewEncoder(&network)

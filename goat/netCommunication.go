@@ -10,13 +10,13 @@ import(
 type outMessage struct {
     id int
     message string
-    predicate Predicate
+    predicate ClosedPredicate
 }
 
 type inMessage struct {
     id int
     message string
-    predicate Predicate
+    predicate ClosedPredicate
     componentId int
 }
 

@@ -106,6 +106,6 @@ func (attr *Attributes) rollback(){
 /*
 Satisfy returns True iff the attributes satisfy the predicate p.
 */
-func (attr *Attributes) Satisfy(p Predicate) bool{
+func (attr *Attributes) Satisfy(p ClosedPredicate) bool{
 	return p.Satisfy(attr)
 }

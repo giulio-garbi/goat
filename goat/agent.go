@@ -3,7 +3,7 @@ package goat
 type Message struct {
     Id int
     Message Tuple
-    Pred Predicate
+    Pred ClosedPredicate
 }
 
 type Agent interface{

@@ -8,10 +8,14 @@ import (
 Predicate represents a predicate to be satisfied by the receiver component of
 a message sent.
 */
-type Predicate interface {
-    ImmediateSatisfy() (bool,bool)
+type ClosedPredicate interface {
+    //ImmediateSatisfy() (bool,bool)
     Satisfy(*Attributes) bool
     String() string
+}
+
+type Predicate interface {
+    CloseUnder(*Attributes) ClosedPredicate
 }
 
 /*
@@ -19,14 +23,14 @@ Equal represents a predicate that is true iff the receiver component has the
 attributes Attr1 and Attr2 both set and they evaluate to the same value.
 */
 
-type Comp struct {
+type ccomp struct {
     Par1 interface{}
     IsAttr1 bool
     Op string
     Par2 interface{}
     IsAttr2 bool
 }
-func (eq Comp) Satisfy(attr *Attributes) bool {
+func (eq ccomp) Satisfy(attr *Attributes) bool {
     a1Val, a1Exists := toValue(attr, eq.Par1, eq.IsAttr1)
     a2Val, a2Exists := toValue(attr, eq.Par2, eq.IsAttr2)
     //fmt.Println(eq.Par1, eq.IsAttr1, a1Val, a1Exists, eq.Op, eq.Par2, eq.IsAttr2, a2Val, a2Exists)
@@ -86,11 +90,76 @@ func (eq Comp) Satisfy(attr *Attributes) bool {
     }
     return false
 }
-func (eq Comp) ImmediateSatisfy() (bool, bool) {
+/*func (eq ccomp) ImmediateSatisfy() (bool, bool) {
     return false, false
-}
-func (eq Comp) String() string {
+}*/
+func (eq ccomp) String() string {
     return fmt.Sprintf("%s(%s,%s)", GetOpLetter(eq.Op), escapeWithType(eq.Par1, eq.IsAttr1), escapeWithType(eq.Par2, eq.IsAttr2))
+}
+
+type compattr struct {
+    name string
+}
+func Comp(atName string) compattr{
+    return compattr{atName}
+}
+
+type recattr struct {
+    name string
+}
+func Receiver(atName string) recattr{
+    return recattr{atName}
+}
+
+type comp struct {
+    arg1 interface{}
+    op string
+    arg2 interface{}
+}
+
+func closure(arg interface{}, attr *Attributes) (interface{}, bool){
+    switch _arg := arg.(type) {
+        case compattr: {
+            return attr.GetValue(_arg.name), false
+        }
+        case recattr: {
+            return _arg.name, true
+        }
+        default: {
+            return _arg, false
+        }
+    }
+}
+
+func (cmp *comp) CloseUnder(attr *Attributes) ccomp{
+    Par1, IsAttr1 := closure(cmp.arg1, attr)
+    Par2, IsAttr2 := closure(cmp.arg2, attr)
+    
+    return ccomp{Par1, IsAttr1, cmp.op, Par2, IsAttr2}
+}
+
+func Equals(arg1 interface{}, arg2 interface{}) comp{
+    return comp{arg1, "==", arg2}
+}
+
+func NotEquals(arg1 interface{}, arg2 interface{}) comp{
+    return comp{arg1, "!=", arg2}
+}
+
+func LessThan(arg1 interface{}, arg2 interface{}) comp{
+    return comp{arg1, "<", arg2}
+}
+
+func LessThanOrEqual(arg1 interface{}, arg2 interface{}) comp{
+    return comp{arg1, "<=", arg2}
+}
+
+func GreaterThan(arg1 interface{}, arg2 interface{}) comp{
+    return comp{arg1, ">", arg2}
+}
+
+func GreaterThanOrEqual(arg1 interface{}, arg2 interface{}) comp{
+    return comp{arg1, ">=", arg2}
 }
 
 func GetOpLetter(op string) string{
@@ -130,16 +199,16 @@ func GetLetterOp(letter string) string{
 /*
 And represents a predicate that is true iff both the predicates P1 and P2 are true.
 */
-type And struct {
-    P1 Predicate
-    P2 Predicate
+type cand struct {
+    p1 ClosedPredicate
+    p2 ClosedPredicate
 }
-func (and And) Satisfy(attr *Attributes) bool {
-    return and.P1.Satisfy(attr) && and.P2.Satisfy(attr)
+func (a cand) Satisfy(attr *Attributes) bool {
+    return a.p1.Satisfy(attr) && a.p2.Satisfy(attr)
 }
-func (and And) ImmediateSatisfy() (bool, bool) {
-    eval1, can1 := and.P1.ImmediateSatisfy()
-    eval2, can2 := and.P2.ImmediateSatisfy()
+/*func (and _and) ImmediateSatisfy() (bool, bool) {
+    eval1, can1 := and.p1.ImmediateSatisfy()
+    eval2, can2 := and.p2.ImmediateSatisfy()
     if can1 && can2 {
         return eval1 && eval2, true
     } else if (can1 && !eval1) || (can2 && !eval2){
@@ -147,24 +216,41 @@ func (and And) ImmediateSatisfy() (bool, bool) {
     } else {
         return false, false
     }
+}*/
+func (a cand) String() string {
+    return fmt.Sprintf("&(%s,%s)", a.p1, a.p2)
 }
-func (and And) String() string {
-    return fmt.Sprintf("&(%s,%s)", and.P1, and.P2)
+
+type and struct {
+    p1 Predicate
+    p2 Predicate
+}
+
+func And(p1 Predicate, p2 Predicate, pn ...Predicate) and {
+    andPred := and{p1, p2}
+    for _, pi := range pn {
+        andPred = and{andPred, pi}
+    }
+    return andPred
+}
+
+func (a and) CloseUnder(attr *Attributes) ClosedPredicate{
+    return cand{a.p1.CloseUnder(attr), a.p2.CloseUnder(attr)}
 }
 
 /*
 Or represents a predicate that is true iff either P1 or P2 is true (or both).
 */
-type Or struct {
-    P1 Predicate
-    P2 Predicate
+type cor struct {
+    p1 ClosedPredicate
+    p2 ClosedPredicate
 }
-func (or Or) Satisfy(attr *Attributes) bool {
-    return or.P1.Satisfy(attr) || or.P2.Satisfy(attr)
+func (o cor) Satisfy(attr *Attributes) bool {
+    return o.p1.Satisfy(attr) || o.p2.Satisfy(attr)
 }
-func (or Or) ImmediateSatisfy() (bool, bool) {
-    eval1, can1 := or.P1.ImmediateSatisfy()
-    eval2, can2 := or.P2.ImmediateSatisfy()
+/*func (o cor) ImmediateSatisfy() (bool, bool) {
+    eval1, can1 := o.p1.ImmediateSatisfy()
+    eval2, can2 := o.p2.ImmediateSatisfy()
     if can1 && can2 {
         return eval1 || eval2, true
     } else if (can1 && eval1) || (can2 && eval2){
@@ -172,87 +258,129 @@ func (or Or) ImmediateSatisfy() (bool, bool) {
     } else {
         return false, false
     }
+}*/
+func (o cor) String() string {
+    return fmt.Sprintf("|(%s,%s)", o.p1, o.p2)
 }
-func (or Or) String() string {
-    return fmt.Sprintf("|(%s,%s)", or.P1, or.P2)
+
+type or struct {
+    p1 Predicate
+    p2 Predicate
+}
+func Or(p1 Predicate, p2 Predicate, pn ...Predicate) or {
+    orPred := or{p1, p2}
+    for _, pi := range pn {
+        orPred = or{orPred, pi}
+    }
+    return orPred
+}
+func (o or) CloseUnder(attr *Attributes) ClosedPredicate {
+    return cor{o.p1.CloseUnder(attr), o.p2.CloseUnder(attr)}
 }
 
 /*
 Not represents a predicate that is true iff the predicate P is false.
 */
-type Not struct {
-    P Predicate
+type cnot struct {
+    p ClosedPredicate
 }
-func (not Not) Satisfy(attr *Attributes) bool {
-    return !not.P.Satisfy(attr)
+func (n cnot) Satisfy(attr *Attributes) bool {
+    return !n.p.Satisfy(attr)
 }
-func (not Not) ImmediateSatisfy() (bool, bool) {
-    eval, can := not.P.ImmediateSatisfy()
+/*func (n cnot) ImmediateSatisfy() (bool, bool) {
+    eval, can := not.p.ImmediateSatisfy()
     if can {
         return !eval, true
     } else {
         return false, false
     }
+}*/
+func (n cnot) String() string {
+    return fmt.Sprintf("!(%s)", n.p)
 }
-func (not Not) String() string {
-    return fmt.Sprintf("!(%s)", not.P)
+
+type not struct {
+    p Predicate
 }
+
+func Not(p Predicate) not {
+    return not{p}
+}
+
+func (n not) CloseUnder(attr *Attributes) ClosedPredicate {
+    return cnot{n.p.CloseUnder(attr)}
+}
+
 
 /*
 True represents a predicate that is always true.
 */
-type True struct {}
-func (t True) Satisfy(*Attributes) bool {
+type _true struct {}
+func (t _true) Satisfy(*Attributes) bool {
     return true
 }
-func (t True) ImmediateSatisfy() (bool, bool) {
+func (t _true) ImmediateSatisfy() (bool, bool) {
     return true, true
 }
-func (t True) String() string {
+func (t _true) String() string {
     return "TT"
+}
+func True() _true {
+    return _true{}
+}
+func (t _true) CloseUnder(attr *Attributes) ClosedPredicate {
+    return t
 }
 
 /*
-And represents a predicate that is always false.
+False represents a predicate that is always false.
 */
-type False struct {}
-func (f False) Satisfy(*Attributes) bool {
+type _false struct {}
+func (f _false) Satisfy(*Attributes) bool {
     return false
 }
-func (f False) ImmediateSatisfy() (bool, bool) {
+func (f _false) ImmediateSatisfy() (bool, bool) {
     return false, true
 }
-func (f False) String() string {
+func (f _false) String() string {
     return "FF"
 }
+func False() _false {
+    return _false{}
+}
+func (f _false) CloseUnder(attr *Attributes) ClosedPredicate {
+    return f
+}
 
-func ToPredicate(s string) (Predicate, error){
+/////////////
+
+func ToPredicate(s string) (ClosedPredicate, error){
     p, _, err := toPredicateInt(s, 0)
     return p, err
 }
 
-func toPredicateInt(s string, from int) (Predicate, int, error) {
+func toPredicateInt(s string, from int) (ClosedPredicate, int, error) {
     escapedS := (s)
     switch s[from: from+2] {
         case "=(", "N(", "l(", "<(", "g(", ">(":
             attr1, is1Attr, commaPos := unescapeWithType(escapedS, from+2)
             attr2, is2Attr, bracketPos := unescapeWithType(escapedS, commaPos+1)
-            return Comp{attr1, is1Attr, GetLetterOp(s[from:from+1]), attr2, is2Attr}, bracketPos+1, nil
+            return ccomp{attr1, is1Attr, GetLetterOp(s[from:from+1]), attr2, is2Attr}, bracketPos+1, nil
         case "&(":
             p1, commaPos, _ := toPredicateInt(s, from+2)
             p2, bracketPos, _ := toPredicateInt(s, commaPos+1)
-            return And{p1, p2}, bracketPos+1, nil
+            return cand{p1, p2}, bracketPos+1, nil
         case "|(":
             p1, commaPos, _ := toPredicateInt(s, from+2)
             p2, bracketPos, _ := toPredicateInt(s, commaPos+1)
-            return Or{p1, p2}, bracketPos+1, nil
+            return cor{p1, p2}, bracketPos+1, nil
         case "!(":
             p, bracketPos, _ := toPredicateInt(s, from+2)
-            return Not{p}, bracketPos+1, nil
+            return cnot{p}, bracketPos+1, nil
         case "TT":
-            return True{}, from+2, nil
+            return _true{}, from+2, nil
         case "FF":
-            return False{}, from+2, nil
+            return _false{}, from+2, nil
         default:
             //TODO Error!
             return nil, from + 1, nil

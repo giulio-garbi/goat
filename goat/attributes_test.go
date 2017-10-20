@@ -42,13 +42,13 @@ func TestGetValueExistingValue(t *testing.T){
         t.Fail()
     }
 }
-
+/*
 func TestGetValueNotExistingValue(t *testing.T){
     attr := getPrebuiltAttrs()
     if v := attr.GetValue("nonex"); v != nil {
         t.Fail()
     }
-}
+}*/
 
 func TestHasExistingValue(t *testing.T){
     attr := getPrebuiltAttrs()

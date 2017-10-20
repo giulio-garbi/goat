@@ -6,7 +6,7 @@ import (
 
 type messagePredicate struct {
 	message   string
-	predicate Predicate
+	predicate ClosedPredicate
 	invalid   bool
 }
 
@@ -100,7 +100,7 @@ func (c *Component) sendMessage(messageToSend messagePredicate, mid int) int {
 	if messageToSend.invalid {
 		msgWithMid = Message{
 			Message:   NewTuple(),
-			Pred: False{},
+			Pred:      False(),
 			Id:        mid,
 		}
 	} else {
@@ -111,7 +111,7 @@ func (c *Component) sendMessage(messageToSend messagePredicate, mid int) int {
 		}
 	}
 	c.chnEvtMessageSent <- mid
-	if _, ok := msgWithMid.Pred.(False); !ok {
+	if _, ok := msgWithMid.Pred.(_false); !ok {
 		dprintln("Sending", c.agent.GetComponentId(), "->", msgWithMid.Message, "[", msgWithMid.Id, "]")
 	}
 	//c.ncomm.chnOutbox <- msgWithMid

@@ -286,9 +286,7 @@ func TestSendReceiveObject(t *testing.T) {
 	comp1 := NewComponent(tst.agents[0])
 	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
-			return NewTuple(sendOb), True{}, true
-		})
+		p.Send(NewTuple(sendOb), True())
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
@@ -320,9 +318,7 @@ func TestSendReceive(t *testing.T) {
 	comp1 := NewComponent(tst.agents[0])
 	comp2 := NewComponent(tst.agents[1])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
-			return NewTuple("Ciao"), True{}, true
-		})
+		p.Send(NewTuple("Ciao"), True())
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
@@ -352,9 +348,7 @@ func TestSendTwoReceive(t *testing.T) {
 	comp2 := NewComponent(tst.agents[1])
 	comp3 := NewComponent(tst.agents[2])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
-			return NewTuple("Ciao"), True{}, true
-		})
+		p.Send(NewTuple("Ciao"), True())
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
@@ -394,9 +388,7 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 	comp2 := NewComponent(tst.agents[1])
 	comp3 := NewComponent(tst.agents[2])
 	NewProcess(comp1).Run(func(p *Process) {
-		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
-			return NewTuple("Ciao"), True{}, true
-		})
+		p.Send(NewTuple("Ciao"), True())
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
@@ -407,9 +399,7 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 			return t.Get(0) == "Ciao"
 		})
 		received2 = true
-		p.Send(func(*Attributes) (Tuple, Predicate, bool) {
-			return NewTuple("Ciaone"), True{}, true
-		})
+		p.Send(NewTuple("Ciaone"), True())
 	})
 	NewProcess(comp3).Run(func(p *Process) {
 		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {

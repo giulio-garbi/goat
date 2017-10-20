@@ -127,7 +127,7 @@ const (
 type SendReceive struct {
 	action  srAction
 	msg     string
-	msgPred Predicate
+	msgPred ClosedPredicate
 	valid   bool
 	accept  func(*Attributes, Tuple) bool
 }
@@ -136,7 +136,7 @@ type SendReceive struct {
 ThenSend signals the intention to sent the message msg to the components that
 satisfy the predicate pred.
 */
-func ThenSend(msg Tuple, msgPred Predicate) SendReceive {
+func ThenSend(msg Tuple, msgPred ClosedPredicate) SendReceive {
 	return SendReceive{
 		action:  sendAction,
 		msg:     msg.encode(),
@@ -265,7 +265,7 @@ sent, according to the return values:
 Note that msgFnc can alter the attributes, but if the message is not sent any
 change to them will be lost.
 */
-
+/*
 func (p *Process) Send(msgFnc func(attr *Attributes) (Tuple, Predicate, bool)) {
 	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
@@ -276,6 +276,18 @@ func (p *Process) Send(msgFnc func(attr *Attributes) (Tuple, Predicate, bool)) {
 			return ThenSend(msg, msgPred)
 		} else {
 			return ThenFail()
+		}
+	}, false)
+}*/
+
+func (p *Process) Send(msg Tuple, pr Predicate){
+    p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+		if receiving {
+			return ThenFail()
+		} else {
+		    cmsg := msg.CloseUnder(attr)
+		    cpr := pr.CloseUnder(attr)
+		    return ThenSend(cmsg, cpr)
 		}
 	}, false)
 }
@@ -329,9 +341,12 @@ func SaveMessageInto(v *string) func(attr *Attributes, msg string) bool {
 WaitUntilTrue blocks p until the todo condition is true. Any message received
 in the meantime is rejected.
 */
-func (p *Process) WaitUntilTrue(todo func(*Attributes) bool) {
-	todoPrime := func(a *Attributes) (Tuple, Predicate, bool) {
-		return Tuple{}, False{}, todo(a)
-	}
-	p.Send(todoPrime)
+func (p *Process) WaitUntilTrue(pred Predicate) {
+	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+		if receiving || !pred.CloseUnder(attr).Satisfy(attr){
+			return ThenFail()
+		} else {
+		    return ThenSend(NewTuple(), False())
+		}
+	}, false)
 }
