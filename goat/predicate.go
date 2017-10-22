@@ -131,7 +131,7 @@ func closure(arg interface{}, attr *Attributes) (interface{}, bool){
     }
 }
 
-func (cmp *comp) CloseUnder(attr *Attributes) ccomp{
+func (cmp comp) CloseUnder(attr *Attributes) ClosedPredicate{
     Par1, IsAttr1 := closure(cmp.arg1, attr)
     Par2, IsAttr2 := closure(cmp.arg2, attr)
     
@@ -160,6 +160,24 @@ func GreaterThan(arg1 interface{}, arg2 interface{}) comp{
 
 func GreaterThanOrEqual(arg1 interface{}, arg2 interface{}) comp{
     return comp{arg1, ">=", arg2}
+}
+
+func Comparison(Par1 interface{}, IsAttr1 bool, Op string, Par2 interface{}, IsAttr2 bool)  comp{
+    var arg1 interface{}
+    if IsAttr1 {
+        arg1 = Receiver(Par1.(string))
+    } else {
+        arg1 = Par1
+    }
+    
+    var arg2 interface{}
+    if IsAttr2 {
+        arg2 = Receiver(Par2.(string))
+    } else {
+        arg2 = Par2
+    }
+    
+    return comp{arg1, Op, arg2}
 }
 
 func GetOpLetter(op string) string{

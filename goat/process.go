@@ -84,12 +84,10 @@ A message is acceptable if the attributes satisfy the aware condition, and the
 message satisfies the accept condition. aware and accept can alter the attributes
 (attr), but if the message is not accepted any change to them will be lost.
 */
-func (p *Process) Receive(aware func(attr *Attributes) bool,
-	accept func(attr *Attributes, msg Tuple) bool) {
-
-	p.sendrec(
+func (p *Process) Receive(accept func(attr *Attributes, msg Tuple) bool) Tuple {
+	return p.sendrec(
 		func(attr *Attributes, receiving bool) SendReceive {
-			if receiving && aware(attr) {
+			if receiving {
 				return ThenReceive(accept)
 			} else {
 				return ThenFail()
@@ -130,6 +128,7 @@ type SendReceive struct {
 	msgPred ClosedPredicate
 	valid   bool
 	accept  func(*Attributes, Tuple) bool
+	updFnc  func(*Attributes)
 }
 
 /*
@@ -137,11 +136,16 @@ ThenSend signals the intention to sent the message msg to the components that
 satisfy the predicate pred.
 */
 func ThenSend(msg Tuple, msgPred ClosedPredicate) SendReceive {
+	return ThenSendUpdate(msg, msgPred, func(*Attributes){})
+}
+
+func ThenSendUpdate(msg Tuple, msgPred ClosedPredicate, updFnc func(*Attributes)) SendReceive {
 	return SendReceive{
 		action:  sendAction,
 		msg:     msg.encode(),
 		msgPred: msgPred,
 		valid:   true,
+		updFnc:  updFnc,
 	}
 }
 
@@ -183,7 +187,7 @@ func (p *Process) Sleep(msec int) {
 	}
 }
 
-func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendReceive, onlyReceive bool) {
+func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendReceive, onlyReceive bool) Tuple {
 	chnTryASend := make(chan struct{})
 	chnGetAttributes := make(chan *Attributes)
 	chnFailTheSend := make(chan struct{})
@@ -201,7 +205,7 @@ func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendR
 				nextAction.accept(attrs, inMsg.Message) {
 				p.chnAcceptMessage <- true
 				close(chnFailTheSend)
-				return
+				return inMsg.Message
 			} else {
 				p.chnAcceptMessage <- false
 			}
@@ -233,7 +237,7 @@ func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendR
 					valid := nextAction.valid
 					if valid {
 						p.Comp.chnMessageToSend <- messagePredicate{msg, msgPred, false}
-						return
+						return NewTuple()
 					}
 				}
 				p.Comp.chnMessageToSend <- messagePredicate{invalid: true}
@@ -265,28 +269,33 @@ sent, according to the return values:
 Note that msgFnc can alter the attributes, but if the message is not sent any
 change to them will be lost.
 */
-/*
-func (p *Process) Send(msgFnc func(attr *Attributes) (Tuple, Predicate, bool)) {
+
+func (p *Process) SendFunc(msgFnc func(attr *Attributes) (Tuple, Predicate, bool)) {
 	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
 			return ThenFail()
 		}
 		msg, msgPred, valid := msgFnc(attr)
 		if valid {
-			return ThenSend(msg, msgPred)
+			return ThenSend(msg, msgPred.CloseUnder(attr))
 		} else {
 			return ThenFail()
 		}
 	}, false)
-}*/
+}
 
 func (p *Process) Send(msg Tuple, pr Predicate){
+    p.SendUpd(msg, pr, func(*Attributes){})
+}
+
+func (p *Process) SendUpd(msg Tuple, pr Predicate, upd func(*Attributes)){
     p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
 			return ThenFail()
 		} else {
 		    cmsg := msg.CloseUnder(attr)
 		    cpr := pr.CloseUnder(attr)
+		    upd(attr)
 		    return ThenSend(cmsg, cpr)
 		}
 	}, false)
@@ -304,9 +313,9 @@ func Case(pred Predicate, action SendReceive, then func()) selectcase{
     return selectcase{pred, action, then}
 }
 
-func (p *Process) Select(cases ...selectcase){
+func (p *Process) Select(cases ...selectcase) Tuple{
     var caseN int
-    p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+    msg := p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
         for i, casei := range cases{
             if casei.pred.CloseUnder(attr).Satisfy(attr){
                 wantsToReceive := casei.action.action == sendAction
@@ -321,6 +330,7 @@ func (p *Process) Select(cases ...selectcase){
 	    return ThenFail()
 	}, false)
 	cases[caseN].then()
+	return msg
 }
 
 /*
@@ -372,6 +382,12 @@ func SaveMessageInto(v *string) func(attr *Attributes, msg string) bool {
 WaitUntilTrue blocks p until the todo condition is true. Any message received
 in the meantime is rejected.
 */
+func (p *Process) WaitUntilTrue(todo func(attr *Attributes) bool) {
+	p.SendFunc(func(attr *Attributes) (Tuple, Predicate, bool){
+	    return NewTuple(), False(), todo(attr)
+	})
+}
+/*
 func (p *Process) WaitUntilTrue(pred Predicate) {
 	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving || !pred.CloseUnder(attr).Satisfy(attr){
@@ -380,4 +396,4 @@ func (p *Process) WaitUntilTrue(pred Predicate) {
 		    return ThenSend(NewTuple(), False())
 		}
 	}, false)
-}
+}*/

@@ -290,7 +290,7 @@ func TestSendReceiveObject(t *testing.T) {
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, t Tuple) bool {
+		p.Receive(func(attr *Attributes, t Tuple) bool {
 		    if !t.IsLong(1){
 		        return false
 		    }
@@ -322,7 +322,7 @@ func TestSendReceive(t *testing.T) {
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		p.Receive(func(attr *Attributes, msg Tuple) bool {
 		    if !msg.IsLong(1){
 		        return false
 		    }
@@ -352,7 +352,7 @@ func TestSendTwoReceive(t *testing.T) {
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		p.Receive(func(attr *Attributes, msg Tuple) bool {
 		    if !msg.IsLong(1){
 		        return false
 		    }
@@ -361,7 +361,7 @@ func TestSendTwoReceive(t *testing.T) {
 		received2 = true
 	})
 	NewProcess(comp3).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		p.Receive(func(attr *Attributes, msg Tuple) bool {
 		    if !msg.IsLong(1){
 		        return false
 		    }
@@ -392,7 +392,7 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 		sent = true
 	})
 	NewProcess(comp2).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, t Tuple) bool {
+		p.Receive(func(attr *Attributes, t Tuple) bool {
 		    if !t.IsLong(1){
 		        return false
 		    }
@@ -402,7 +402,7 @@ func TestSendTwoReceiveOneAcceptThenTheOther(t *testing.T) {
 		p.Send(NewTuple("Ciaone"), True())
 	})
 	NewProcess(comp3).Run(func(p *Process) {
-		p.Receive(NoPre(), func(attr *Attributes, msg Tuple) bool {
+		p.Receive(func(attr *Attributes, msg Tuple) bool {
 		    if !msg.IsLong(1){
 		        return false
 		    }
