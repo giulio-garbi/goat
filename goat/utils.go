@@ -117,6 +117,10 @@ func unescapeWithType(s string, from int) (interface{}, bool, int) {
 func toValue(attr *Attributes, x interface{}, isXAttr bool) (interface{}, bool){
     if isXAttr {
         return (*attr).Get(x.(string))
+    } else if _, isTr := x.(_true); isTr{
+        return true, true
+    } else if _, isF := x.(_false); isF{
+        return false, true
     } else {
         return x, true
     }
