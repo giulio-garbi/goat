@@ -95,26 +95,6 @@ func (p *Process) Receive(accept func(attr *Attributes, msg Tuple) bool) Tuple {
 		}, true)
 }
 
-/*
-ReceiveObject behaves like Receive, but it supports objects. Messages that cannot 
-be unmarshaled (using the obj interface as a reference) will be rejected. Pass
-obj by reference, since the received object will be written inside.
-*//*
-func (p *Process) ReceiveObject(aware func(attr *Attributes) bool,
-	accept func(attr *Attributes) bool, obj interface{}) {
-	    p.Receive(aware, func(attr *Attributes, sData64 string) bool{
-	        sData, err := base64.StdEncoding.DecodeString(sData64)
-	        if err != nil {
-	            return false
-	        }
-	        if err = json.Unmarshal(sData, obj); err != nil {
-	            return false
-	        } else {
-	            return accept(attr)
-	        }
-	    })
-}*/
-
 type srAction int
 
 const (
@@ -139,6 +119,10 @@ func ThenSend(msg Tuple, msgPred ClosedPredicate) SendReceive {
 	return ThenSendUpdate(msg, msgPred, func(*Attributes){})
 }
 
+/*
+ThenSendUpdate signals the intention to sent the message msg to the components that
+satisfy the predicate pred, and then alters the environment
+*/
 func ThenSendUpdate(msg Tuple, msgPred ClosedPredicate, updFnc func(*Attributes)) SendReceive {
 	return SendReceive{
 		action:  sendAction,
@@ -150,7 +134,7 @@ func ThenSendUpdate(msg Tuple, msgPred ClosedPredicate, updFnc func(*Attributes)
 }
 
 /*
-ThenFail signals the intention to retry the SendOrReceive when a new message arrives
+ThenFail signals the intention to retry the Send/Receive when a new message arrives
 or the attributes of the component change.
 */
 func ThenFail() SendReceive {
@@ -161,7 +145,7 @@ func ThenFail() SendReceive {
 }
 
 /*
-ThenSend signals the intention to accept the message a message that satisfies the
+ThenReceive signals the intention to accept the first received message that satisfies the
 accept condition.
 */
 func ThenReceive(accept func(*Attributes, Tuple) bool) SendReceive {
@@ -253,6 +237,8 @@ of the attributes. The condition is encoded into chooseFnc. chooseFnc must retur
 a call to ThenSend or ThenFail if receiving is false, or a call to ThenReceive or
 ThenFail otherwise. chooseFnc is allowed to modify the attributes, but any change
 is lost if a message is not actually received or sent.
+Deprecated: this is a low level API call that can be avoided. It should be used only 
+by the code generator.
 */
 func (p *Process) SendOrReceive(chooseFnc func(attr *Attributes, receiving bool) SendReceive) {
 	p.sendrec(chooseFnc, false)
@@ -268,8 +254,9 @@ sent, according to the return values:
 * otherwise, msgFnc must return a string, a predicate and the false value.
 Note that msgFnc can alter the attributes, but if the message is not sent any
 change to them will be lost.
+Deprecated: this is a low level API call that can be avoided. It should be used only 
+by the code generator.
 */
-
 func (p *Process) SendFunc(msgFnc func(attr *Attributes) (Tuple, Predicate, bool)) {
 	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
@@ -284,10 +271,19 @@ func (p *Process) SendFunc(msgFnc func(attr *Attributes) (Tuple, Predicate, bool
 	}, false)
 }
 
+/*
+Send sends a message to other components. msg contains the message to be sent,
+pr states the property a component must satisfy to receive msg.
+*/
 func (p *Process) Send(msg Tuple, pr Predicate){
     p.SendUpd(msg, pr, func(*Attributes){})
 }
 
+/*
+SendUpd sends a message to other components. msg contains the message to be sent,
+pr states the property a component must satisfy to receive msg. After sending the
+message, the upd function can alter the set of attributes.
+*/
 func (p *Process) SendUpd(msg Tuple, pr Predicate, upd func(*Attributes)){
     p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
@@ -304,18 +300,35 @@ func (p *Process) SendUpd(msg Tuple, pr Predicate, upd func(*Attributes)){
 type selectcase struct{
     pred Predicate
     action SendReceive
-    then func()
+    then func(*Process)
 }
 
 func Nothing() {}
 
-func Case(pred Predicate, action SendReceive, then func()) selectcase{
+/*
+ZeroProcess represents a process that cannot do anything (hence it behaves as 0).
+*/
+func ZeroProcess(*Process) {}
+
+/*
+Case represent a case in a Select call. pred is the predicate to be satisfied to
+enter the case. action is the action to perform in this case (send/receive/set/fail).
+If the action fails, the Select will be retried; otherwise the process continues as
+then.
+*/
+func Case(pred Predicate, action SendReceive, then func(*Process)) selectcase{
     return selectcase{pred, action, then}
 }
 
-func (p *Process) Select(cases ...selectcase) Tuple{
+/*
+Select is a statement that allows the process to evolve differently according to
+the environment. Each possible evolution is stated in a case. Cases are considered
+sequentially in the order they are given. If none of the case is satisfied, the Select
+statement is repeated as soon as the environment changes.
+*/
+func (p *Process) Select(cases ...selectcase){
     var caseN int
-    msg := p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+    p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
         for i, casei := range cases{
             if casei.pred.CloseUnder(attr).Satisfy(attr){
                 wantsToReceive := casei.action.action == sendAction
@@ -329,55 +342,18 @@ func (p *Process) Select(cases ...selectcase) Tuple{
 	    }
 	    return ThenFail()
 	}, false)
-	cases[caseN].then()
-	return msg
+	p.Call(cases[caseN].then)
 }
-
-/*
-SendObject acts like Send, but you can return objects that will be converted in JSON.
-Returns the (possble) marshaling error.
-
-func (p *Process) SendObject(msgFnc func(attr *Attributes) (interface{}, Predicate, bool)) error {
-    var err error
-    p.Send(
-        func(attr *Attributes) (string, Predicate, bool){
-            obj, pred, valid := msgFnc(attr)
-            if valid {
-                jObj, err := json.Marshal(obj)
-                if err != nil { // error marshaling, I do not send anymore
-                    return "", False{}, true
-                } else {
-                    return base64.StdEncoding.EncodeToString(jObj), pred, true
-                }
-            } else {
-                return "", False{}, false
-            }
-        })
-    return err
-}*/
-/*
-func Messagef(msg string) func(attr *Attributes) (string, Predicate, bool) {
-	return func(attr *Attributes) (string, Predicate, bool) {
-		return msg, True{}, true
-	}
-}*/
 
 /*
 NoPre generates an always true precondition.
 */
-func NoPre() func(attr *Attributes) bool {
+/*func NoPre() func(attr *Attributes) bool {
 	return func(*Attributes) bool {
 		return true
 	}
-}
-/*
-func SaveMessageInto(v *string) func(attr *Attributes, msg string) bool {
-	return func(_ *Attributes, msg string) bool {
-		*v = msg
-		return true
-	}
-}
-*/
+}*/
+
 /*
 WaitUntilTrue blocks p until the todo condition is true. Any message received
 in the meantime is rejected.
@@ -387,13 +363,26 @@ func (p *Process) WaitUntilTrue(todo func(attr *Attributes) bool) {
 	    return NewTuple(), False(), todo(attr)
 	})
 }
+
 /*
-func (p *Process) WaitUntilTrue(pred Predicate) {
-	p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
-		if receiving || !pred.CloseUnder(attr).Satisfy(attr){
-			return ThenFail()
-		} else {
-		    return ThenSend(NewTuple(), False())
-		}
-	}, false)
-}*/
+SetIf waits for pred to be satisfied, then changes the environment according
+to setup. Any message received during this call is rejected.
+*/
+func (p *Process) SetIf(pred Predicate, setup func(attr *Attributes)) {
+	p.SendFunc(func(attr *Attributes) (Tuple, Predicate, bool){
+	    if pred.CloseUnder(attr).Satisfy(attr) {
+	        setup(attr)
+	        return NewTuple(), False(), true
+	    } else {
+	        return NewTuple(), False(), false
+        }
+	})
+}
+
+/*
+Set changes the environment according to setup. Any message received during 
+this call is rejected.
+*/
+func (p *Process) Set(setup func(attr *Attributes)) {
+	p.SetIf(True(), setup)
+}
