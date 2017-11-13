@@ -8,6 +8,7 @@ import (
     "bufio"
     "time"
     "reflect"
+    "encoding/gob"
 )
 
 func itoa(n int) string {
@@ -60,6 +61,8 @@ func escapeWithType(x interface{}, isXAttr bool) string{
         return escape("A|"+x.(string))
     } else {
         switch val := x.(type) {
+            case Tuple:
+                return escape("T|" + val.encode())
             case string:
                 return escape("S|"+val)
             case int:
@@ -104,6 +107,11 @@ func unescapeWithType(s string, from int) (interface{}, bool, int) {
                 default:
                     panic(bval+" is not a valid boolean!")
             }
+        }
+        case 'T':
+        {
+            tdata, nextItem := unescape(s, from+2)
+            return decodeTuple(tdata), false, nextItem
         }
         case 'X': //TODO gob!
         {
@@ -308,4 +316,8 @@ func timeout(msec int64) <-chan time.Time{
     } else {
         return make(chan time.Time)
     }
+}
+
+func InitSend() {
+    gob.Register(NewTuple())
 }
