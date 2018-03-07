@@ -23,6 +23,15 @@ func (t *Tuple) Get(x int) interface{}{
     return t.Elems[x]
 }
 
+func (t *Tuple) Contains(x interface{}) bool {
+    for i := 0; i<len(t.Elems); i++ {
+        if t.Elems[i] == x {
+            return true
+        }
+    }
+    return false
+}
+
 func (t *Tuple) CloseUnder(attr *Attributes) Tuple{
     el := make([]interface{}, len(t.Elems))
     for i, v := range t.Elems {
