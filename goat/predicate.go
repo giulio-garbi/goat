@@ -215,6 +215,48 @@ func GetLetterOp(letter string) string{
 }
 
 /*
+IsIn represents a predicate that is true iff the receiver component has the
+attributes elem and tpl both set, tpl is a tuple and elem is an elemnt of tpl.
+*/
+
+func IsIn(elem interface{}, tpl interface{}) isin{
+    return isin{elem, tpl}
+}
+
+type isin struct {
+    arg1 interface{}
+    arg2 interface{}
+}
+
+func (iin isin) CloseUnder(attr *Attributes) ClosedPredicate{
+    Par1, IsAttr1 := closure(iin.arg1, attr)
+    Par2, IsAttr2 := closure(iin.arg2, attr)
+    
+    return cisin{Par1, IsAttr1, Par2, IsAttr2}
+}
+
+type cisin struct {
+    Par1 interface{}
+    IsAttr1 bool
+    Par2 interface{}
+    IsAttr2 bool
+}
+
+func (iin cisin) Satisfy(attr *Attributes) bool {
+    a1Val, a1Exists := toValue(attr, iin.Par1, iin.IsAttr1)
+    a2Val, a2Exists := toValue(attr, iin.Par2, iin.IsAttr2)
+    if !a1Exists || !a2Exists {
+        return false
+    }
+    a2, isA2Tuple := a2Val.(Tuple)
+    return isA2Tuple && a2.Contains(a1Val)
+}
+
+func (eq cisin) String() string {
+    return fmt.Sprintf("C(%s,%s)", escapeWithType(eq.Par1, eq.IsAttr1), escapeWithType(eq.Par2, eq.IsAttr2))
+}
+
+/*
 And represents a predicate that is true iff both the predicates P1 and P2 are true.
 */
 type cand struct {
@@ -380,6 +422,10 @@ func ToPredicate(s string) (ClosedPredicate, error){
 func toPredicateInt(s string, from int) (ClosedPredicate, int, error) {
     escapedS := (s)
     switch s[from: from+2] {
+        case "C(":
+            attr1, is1Attr, commaPos := unescapeWithType(escapedS, from+2)
+            attr2, is2Attr, bracketPos := unescapeWithType(escapedS, commaPos+1)
+            return cisin{attr1, is1Attr, attr2, is2Attr}, bracketPos+1, nil
         case "=(", "N(", "l(", "<(", "g(", ">(":
             attr1, is1Attr, commaPos := unescapeWithType(escapedS, from+2)
             attr2, is2Attr, bracketPos := unescapeWithType(escapedS, commaPos+1)
