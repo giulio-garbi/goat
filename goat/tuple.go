@@ -15,15 +15,15 @@ func NewTuple(elems... interface{}) (Tuple){
     return Tuple{elems}
 }
 
-func (t *Tuple) IsLong(x int) bool{
+func (t Tuple) IsLong(x int) bool{
     return len(t.Elems) == x
 }
 
-func (t *Tuple) Length() int{
+func (t Tuple) Length() int{
     return len(t.Elems)
 }
 
-func (t *Tuple) Get(x int) interface{}{
+func (t Tuple) Get(x int) interface{}{
     return t.Elems[x]
 }
 
@@ -39,7 +39,7 @@ func (t *Tuple) Pop(){
     t.Elems = t.Elems[:len(t.Elems)-1]
 }
 
-func (t *Tuple) Contains(x interface{}) bool {
+func (t Tuple) Contains(x interface{}) bool {
     for i := 0; i<len(t.Elems); i++ {
         if t.Elems[i] == x {
             return true
