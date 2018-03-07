@@ -219,8 +219,22 @@ IsIn represents a predicate that is true iff the receiver component has the
 attributes elem and tpl both set, tpl is a tuple and elem is an elemnt of tpl.
 */
 
-func IsIn(elem interface{}, tpl interface{}) isin{
-    return isin{elem, tpl}
+func IsIn(Par1 interface{}, IsAttr1 bool, Par2 interface{}, IsAttr2 bool) isin{
+    var arg1 interface{}
+    if IsAttr1 {
+        arg1 = Receiver(Par1.(string))
+    } else {
+        arg1 = Par1
+    }
+    
+    var arg2 interface{}
+    if IsAttr2 {
+        arg2 = Receiver(Par2.(string))
+    } else {
+        arg2 = Par2
+    }
+    
+    return isin{arg1, arg2}
 }
 
 type isin struct {
