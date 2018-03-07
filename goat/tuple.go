@@ -19,8 +19,24 @@ func (t *Tuple) IsLong(x int) bool{
     return len(t.Elems) == x
 }
 
+func (t *Tuple) Length() int{
+    return len(t.Elems)
+}
+
 func (t *Tuple) Get(x int) interface{}{
     return t.Elems[x]
+}
+
+func (t *Tuple) Set(index int, x interface{}){
+    t.Elems[index] = x
+}
+
+func (t *Tuple) Append(x interface{}){
+    t.Elems = append(t.Elems, x)
+}
+
+func (t *Tuple) Pop(){
+    t.Elems = t.Elems[:len(t.Elems)-1]
 }
 
 func (t *Tuple) Contains(x interface{}) bool {
