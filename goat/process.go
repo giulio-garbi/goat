@@ -2,6 +2,7 @@ package goat
 
 import (
 	"time"
+	//"fmt"
 )
 
 /*
@@ -10,8 +11,10 @@ Process represents the behaviour of the system. It is associated to a Component.
 type Process struct {
 	Comp *Component
 
-	chnAcceptMessage chan bool
-	chnMessage       chan attributesInMessage
+	//chnAcceptMessage chan bool
+	chnMessage       chan Message
+	
+	DBGSstatus int
 }
 
 /*
@@ -22,8 +25,8 @@ func NewProcess(c *Component) *Process {
 	p := Process{
 		Comp: c,
 
-		chnAcceptMessage: make(chan bool),
-		chnMessage:       make(chan attributesInMessage),
+		//chnAcceptMessage: make(chan bool),
+		chnMessage:       make(chan Message),
 	}
 	return &p
 }
@@ -38,16 +41,31 @@ Run defines that the wrapped component must behave like procFnc, and starts the
 component behaviour. Note that each component behaves as only one process (that
 it could well be a parallel composition).
 */
-func (p *Process) Run(procFnc func(p *Process)) {
-	chnSubscribed := make(chan struct{})
-	go func() {
+func (p *Process) Run(procFncs ...func(p *Process)) {
+	//chnSubscribed := make(chan struct{})
+	procs := make([]*Process, len(procFncs))
+	for i := range procs {
+	    if i == 0 {
+	        procs[0] = p
+	    } else {
+	        procs[i] = NewProcess(p.Comp)
+	    }
+	}
+	p.Comp.chnSubscribe <- procs
+	for i, pr := range procs{
+	    go func(q *Process, procFnc func(p *Process)){
+	        q.Call(procFnc)
+		    q.unsubscribe()
+	    }(pr, procFncs[i])
+	}
+	/*go func() {
 		p.Comp.chnSubscribe <- p
 		close(chnSubscribed)
 		p.Call(procFnc)
 		p.unsubscribe()
 		//fmt.Println("Unsubscribed")
 	}()
-	<-chnSubscribed
+	<-chnSubscribed*/
 }
 
 /*
@@ -60,7 +78,19 @@ func (p *Process) Call(procFnc func(p *Process)) {
 /*
 Spawn creates a new process that behaves like procFnc running on the same component.
 */
-func (p *Process) Spawn(procFnc func(p *Process)) {
+func (p *Process) Spawn(procFncs ...func(p *Process)) {
+    procs := make([]*Process, len(procFncs))
+	for i := range procs {
+        procs[i] = NewProcess(p.Comp)
+	}
+	p.Comp.chnSubscribe <- procs
+	for i, pr := range procs{
+	    go func(q *Process, procFnc func(p *Process)){
+	        q.Call(procFnc)
+		    q.unsubscribe()
+	    }(pr, procFncs[i])
+	}
+    /*
 	chnSubscribed := make(chan struct{})
 	go func() {
 		subProc := NewProcess(p.Comp)
@@ -70,7 +100,7 @@ func (p *Process) Spawn(procFnc func(p *Process)) {
 		subProc.unsubscribe()
 		//fmt.Println("Unsubscribed")
 	}()
-	<-chnSubscribed
+	<-chnSubscribed*/
 }
 
 type attributesInMessage struct {
@@ -164,7 +194,7 @@ func (p *Process) Sleep(msec int) {
 	for {
 		select {
 		case <-p.chnMessage:
-			p.chnAcceptMessage <- false
+			p.Comp.messageDispatcher.chnAcceptMessage <- false
 		case <-timeout:
 			return
 		}
@@ -172,12 +202,63 @@ func (p *Process) Sleep(msec int) {
 }
 
 func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendReceive, onlyReceive bool) Tuple {
+    incomingMids := make(chan struct{})
+    if !onlyReceive {
+        p.Comp.midHandler.AskMids(incomingMids)
+    }
+    for {
+        select {
+        case inMsg := <-p.chnMessage:
+            attrs := p.Comp.attributes
+			nextAction := chooseFnc(attrs, true)
+			if nextAction.action == receiveAction &&
+				attrs.Satisfy(inMsg.Pred) &&
+				nextAction.accept(attrs, inMsg.Message) {
+	            p.DBGSstatus = 2
+	            p.Comp.attributes.commit()
+	            //fmt.Println("used", p.Comp.attributes.GetValue("used"))
+				p.Comp.messageDispatcher.chnAcceptMessage <- true
+				if !onlyReceive {
+				    p.Comp.midHandler.StopMids(incomingMids)
+				}
+	            p.DBGSstatus = 0
+				return inMsg.Message
+			} else {
+	            p.DBGSstatus = 3
+	            p.Comp.attributes.rollback()
+				p.Comp.messageDispatcher.chnAcceptMessage <- false
+				p.DBGSstatus = 1
+			}
+		case <- incomingMids: 
+		    //attrs := p.Comp.attributes
+		    nextAction := chooseFnc(p.Comp.attributes, false)
+			if nextAction.action == sendAction {
+				msg := nextAction.msg
+				msgPred := nextAction.msgPred
+				valid := nextAction.valid
+				if valid {
+				    nextAction.updFnc(p.Comp.attributes)
+				    p.Comp.attributes.commit()
+				    p.Comp.midHandler.SendMessage(messagePredicate{msg, msgPred, false}, incomingMids)
+		            return NewTuple()
+				}
+			}
+			p.Comp.attributes.rollback()
+			p.Comp.midHandler.RetryLater(incomingMids)
+        }
+    }
+}
+/*
+func (p *Process) sendrecOld(chooseFnc func(attr *Attributes, receiving bool) SendReceive, onlyReceive bool) Tuple {
 	chnTryASend := make(chan struct{})
+	chnUpdEvt := make(chan struct{})
 	chnGetAttributes := make(chan *Attributes)
 	chnFailTheSend := make(chan struct{})
 	if !onlyReceive {
+	    chnUpdEvt = <-p.Comp.chnUpdateEventToProc
 		close(chnTryASend)
 	}
+	p.DBGSstatus = 1
 	for {
 		select {
 		case attrsIM := <-p.chnMessage:
@@ -186,50 +267,83 @@ func (p *Process) sendrec(chooseFnc func(attr *Attributes, receiving bool) SendR
 			nextAction := chooseFnc(attrs, true)
 			if nextAction.action == receiveAction &&
 				attrs.Satisfy(inMsg.Pred) &&
-				nextAction.accept(attrs, inMsg.Message) {
+				nextAction.accept(&p.Comp.attributes, inMsg.Message) {
+	            p.DBGSstatus = 2
 				p.chnAcceptMessage <- true
 				close(chnFailTheSend)
+	            p.DBGSstatus = 0
 				return inMsg.Message
 			} else {
+	            p.DBGSstatus = 3
 				p.chnAcceptMessage <- false
+				p.DBGSstatus = 1
 			}
 
 		case <-chnTryASend:
+	        p.DBGSstatus = 4
 			chnTryASend = make(chan struct{})
 			go func(ga chan *Attributes, cmp *Component) {
 				cmp.chnWantsToSend <- struct{}{}
 				at := <-cmp.chnGetAttributes
 				select {
 				case ga <- at:
+	                p.DBGSstatus = 5
 				case <-chnFailTheSend:
 					{
+	                    p.DBGSstatus = 6
 						p.Comp.chnMessageToSend <- messagePredicate{invalid: true}
-						<-p.Comp.chnUpdateEventToProc
+						//<-p.Comp.chnUpdateEventToProc
 					}
 				}
 			}(chnGetAttributes, p.Comp)
 
 		case attrs := <-chnGetAttributes:
+	        p.DBGSstatus = 7
 			if onlyReceive {
+	            p.DBGSstatus = 8
 				p.Comp.chnMessageToSend <- messagePredicate{invalid: true}
-				<-p.Comp.chnUpdateEventToProc
+	p.DBGSstatus = 9
+				//<-p.Comp.chnUpdateEventToProc
 			} else {
+	p.DBGSstatus = 10
 				nextAction := chooseFnc(attrs, false)
 				if nextAction.action == sendAction {
 					msg := nextAction.msg
 					msgPred := nextAction.msgPred
 					valid := nextAction.valid
 					if valid {
-						p.Comp.chnMessageToSend <- messagePredicate{msg, msgPred, false}
-						return NewTuple()
+					    for {
+	p.DBGSstatus = 11
+					        select{
+					            case <-p.chnMessage:
+	p.DBGSstatus = 12
+					                p.chnAcceptMessage <- false
+				                default:
+	p.DBGSstatus = 13
+				                    nextAction.updFnc(&p.Comp.attributes)
+	p.DBGSstatus = 14
+				                    p.Comp.chnMessageToSend <- messagePredicate{msg, msgPred, false, nil}
+	p.DBGSstatus = 0
+						            return NewTuple()
+					        }
+					    }
 					}
 				}
-				p.Comp.chnMessageToSend <- messagePredicate{invalid: true}
-				chnTryASend = <-p.Comp.chnUpdateEventToProc
+	p.DBGSstatus = 15
+	            newUpdEvt := <-p.Comp.chnUpdateEventToProc
+	            if newUpdEvt != chnUpdEvt {
+				    chnUpdEvt = newUpdEvt
+				    close(chnTryASend)
+				} else {
+				    chnTryASend = chnUpdEvt
+				}
+	p.DBGSstatus = 16
+				p.Comp.chnMessageToSend <- messagePredicate{"", False(), true, nil}
+	p.DBGSstatus = 17
 			}
 		}
 	}
-}
+}*/
 
 /*
 SendOrReceive allows to implement either a Send or a Receive according to the value
@@ -276,7 +390,8 @@ Send sends a message to other components. msg contains the message to be sent,
 pr states the property a component must satisfy to receive msg.
 */
 func (p *Process) Send(msg Tuple, pr Predicate){
-    p.SendUpd(msg, pr, func(*Attributes){})
+    //p.SendUpd(msg, pr, func(*Attributes){})
+    p.WaitSendUpd(True(), msg, pr, func(*Attributes){})
 }
 
 /*
@@ -285,7 +400,7 @@ pr states the property a component must satisfy to receive msg. After sending th
 message, the upd function can alter the set of attributes.
 */
 func (p *Process) SendUpd(msg Tuple, pr Predicate, upd func(*Attributes)){
-    p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+    /*p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving {
 			return ThenFail()
 		} else {
@@ -293,6 +408,23 @@ func (p *Process) SendUpd(msg Tuple, pr Predicate, upd func(*Attributes)){
 		    cpr := pr.CloseUnder(attr)
 		    upd(attr)
 		    return ThenSend(cmsg, cpr)
+		}
+	}, false)*/
+	p.WaitSendUpd(True(), msg, pr, upd)
+}
+
+func (p *Process) WaitSend(cond Predicate, msg Tuple, pr Predicate){
+    p.WaitSendUpd(cond, msg, pr, func(*Attributes){})
+}
+
+func (p *Process) WaitSendUpd(cond Predicate, msg Tuple, pr Predicate, upd func(*Attributes)){
+    p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
+		if receiving || !cond.CloseUnder(attr).Satisfy(attr) {
+			return ThenFail()
+		} else {
+		    cmsg := msg.CloseUnder(attr)
+		    cpr := pr.CloseUnder(attr)
+		    return ThenSendUpdate(cmsg, cpr, upd)
 		}
 	}, false)
 }

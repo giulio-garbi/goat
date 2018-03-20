@@ -111,6 +111,14 @@ func Receiver(atName string) recattr{
     return recattr{atName}
 }
 
+type evalattr struct {
+    fnc func(...interface{})interface{}
+    params []interface{}
+}
+func Evaluate(fnc func(...interface{})interface{}, params ...interface{}) evalattr{
+    return evalattr{fnc, params}
+}
+
 type comp struct {
     arg1 interface{}
     op string
@@ -121,6 +129,15 @@ func closure(arg interface{}, attr *Attributes) (interface{}, bool){
     switch _arg := arg.(type) {
         case compattr: {
             return attr.GetValue(_arg.name), false
+        }
+        case evalattr: {
+            paramsTpl := NewTuple(_arg.params...)
+            paramsTplClosed := paramsTpl.CloseUnder(attr)
+            params := make([]interface{}, len(_arg.params))
+            for i := range _arg.params {
+                params[i] = paramsTplClosed.Get(i)
+            }
+            return _arg.fnc(params...), false
         }
         case recattr: {
             return _arg.name, true
@@ -218,6 +235,10 @@ func GetLetterOp(letter string) string{
 IsIn represents a predicate that is true iff the receiver component has the
 attributes elem and tpl both set, tpl is a tuple and elem is an elemnt of tpl.
 */
+
+func In(Par1 interface{}, Par2 interface{}) isin{
+    return isin{Par1, Par2}
+}
 
 func IsIn(Par1 interface{}, IsAttr1 bool, Par2 interface{}, IsAttr2 bool) isin{
     var arg1 interface{}

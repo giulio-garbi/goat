@@ -5,15 +5,18 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 )
 
 type CentralServer struct {
 	nextCompId           int
 	nextMsgId            int
-	compAddresses        map[int]string
+	//compAddresses        map[int]string
 	listener             net.Listener
-	messagesActuallySent int
-	proposalsActuallySent int
+	messagesExchanged    int
+	lock *sync.Mutex
+	compConnOut map[int]net.Conn
+	compConnIn map[int]*bufio.Reader
 }
 
 func (srv *CentralServer) sendToComponent(cid int, tokens ...string) {
@@ -21,12 +24,22 @@ func (srv *CentralServer) sendToComponent(cid int, tokens ...string) {
 	for i, tok := range tokens {
 		escTokens[i] = escape(tok)
 	}
+	//dprintln("Dialing", cid)
 	for successComm := false; !successComm; {
-		conn, err := net.Dial("tcp", srv.compAddresses[cid])
-		if err == nil {
-			fmt.Fprintf(conn, "%s\n", strings.Join(escTokens, " "))
+		conn := srv.compConnOut[cid]//, err := net.Dial("tcp", srv.compAddresses[cid])
+//		if err == nil {
+		    dprintln("Dialed", cid)
+	        dprintln("Writing", cid)
+			_, errf := fmt.Fprintf(conn, "%s\n", strings.Join(escTokens, " "))
+			if errf != nil {
+			    panic(errf)
+			}
+	        dprintln("Written", cid)
+			srv.messagesExchanged++
 			successComm = true
-		}
+	//	} else {
+		//    panic(err)
+		//} 
 	}
 }
 
@@ -34,7 +47,7 @@ func (srv *CentralServer) Terminate() {
 	srv.listener.Close()
 
 }
-
+/*
 func (srv *CentralServer) receive() (string, []string, string) {
 	conn, err := srv.listener.Accept()
 	if err != nil {
@@ -47,37 +60,115 @@ func (srv *CentralServer) receive() (string, []string, string) {
 	_ = err
 	serverMsg, err := bufio.NewReader(conn).ReadString('\n')
 	if err == nil {
+	    dprintln("Accept:",serverMsg)
 		escTokens := strings.Split(serverMsg[:len(serverMsg)-1], " ")
 		tokens := make([]string, len(escTokens))
 		for i, escTok := range escTokens {
 			tokens[i], _ = unescape(escTok, 0)
 		}
+		srv.messagesExchanged++
 		return tokens[0], tokens[1:], address
 	} else {
 		//TODO Error
 		return "", []string{}, ""
 	}
+}*/
+
+func (srv *CentralServer) GetMessagesExchanged() int {
+	return srv.messagesExchanged
 }
 
-func (srv *CentralServer) GetMessagesSent() int {
-	return srv.messagesActuallySent
+func (srv *CentralServer) ListenReg() {
+    for{
+        conn, _ := srv.listener.Accept()
+        bconn := bufio.NewReader(conn)
+	    myAddressPort := conn.RemoteAddr().String()
+	    portIndex := strings.LastIndex(myAddressPort, ":")
+	    address := myAddressPort[:portIndex]
+        dprintln("!")
+	    serverMsg, err := bufio.NewReader(conn).ReadString('\n')
+	    if err == nil {
+	        dprintln("Accept:",serverMsg)
+		    escTokens := strings.Split(serverMsg[:len(serverMsg)-1], " ")
+		    tokens := make([]string, len(escTokens))
+		    for i, escTok := range escTokens {
+			    tokens[i], _ = unescape(escTok, 0)
+		    }
+		    cPort := tokens[1]
+		    srv.lock.Lock()
+		    srv.messagesExchanged++
+			cid := srv.nextCompId
+			srv.nextCompId++
+			srv.compConnIn[cid] = bconn
+			connOut, err := net.Dial("tcp", address + ":" + cPort)
+			if err != nil {
+			    panic(err)
+			}
+			srv.compConnOut[cid] = connOut
+			srv.sendToComponent(cid, "Registered", itoa(cid), itoa(srv.nextMsgId))
+			go func(id int, bcon *bufio.Reader){srv.ListenConn(id, bcon)}(cid, bconn)
+		    srv.lock.Unlock()
+	    } 
+    }
 }
 
-func (srv *CentralServer) GetProposalsSent() int {
-	return srv.proposalsActuallySent
+func (srv *CentralServer) ListenConn(cid int, bconn *bufio.Reader) {
+    for{
+        serverMsg, _ := bconn.ReadString('\n')
+        if serverMsg == "" {
+            continue
+        }
+        dprintln("Accept:",serverMsg)
+	    escTokens := strings.Split(serverMsg[:len(serverMsg)-1], " ")
+	    tokens := make([]string, len(escTokens))
+	    for i, escTok := range escTokens {
+		    tokens[i], _ = unescape(escTok, 0)
+	    }
+	    params := tokens[1:]
+	    srv.lock.Lock()
+	    srv.messagesExchanged++
+	    switch(tokens[0]) {
+	        case "DATA":
+				senderid := atoi(params[1])
+				for cid := range srv.compConnOut {
+					if senderid != cid {
+					    dprintln("Sending msg to",cid,params)
+						srv.sendToComponent(cid, append([]string{"DATA"}, params...)...)
+						dprintln("Sent msg to",cid,params, srv.nextMsgId)
+					} else {
+					    dprintln("Skipping msg to",cid,params)
+					}
+				}
+			case "REQ":
+				cid := atoi(params[0])
+				mid := srv.nextMsgId
+				srv.nextMsgId++
+				dprintln("Sending RPLY to",cid)
+				srv.sendToComponent(cid, "RPLY", itoa(mid))
+			
+		}
+		srv.lock.Unlock()
+    }
 }
 
 func RunCentralServer(port int, term chan struct{}, msec int64) *CentralServer {
 	srv := CentralServer{
 		nextCompId:           0,
 		nextMsgId:            0,
-		compAddresses:        map[int]string{},
-		messagesActuallySent: 0,
-		proposalsActuallySent: 0,
+		//compAddresses:        map[int]string{},
+		messagesExchanged:    0,
+	    lock: &sync.Mutex{},
+	    compConnOut: map[int]net.Conn{},
+	    compConnIn: map[int]*bufio.Reader{},
 	}
-	srv.listener, _ = net.Listen("tcp", ":"+itoa(port))
+	var err error
+	srv.listener, err = net.Listen("tcp", ":"+itoa(port))
+	if err != nil{
+	    panic(err)
+	}
 	go func() {
-		for {
+	    srv.ListenReg()
+		/*for {
 			ok := make(chan struct{})
 			var cmd string
 			var params []string
@@ -101,25 +192,23 @@ func RunCentralServer(port int, term chan struct{}, msec int64) *CentralServer {
 				srv.sendToComponent(cid, "Registered", itoa(cid), itoa(srv.nextMsgId))
 			case "DATA":
 				senderid := atoi(params[1])
-				if params[2] != "FF" {
-					srv.messagesActuallySent++
-					tuple := decodeTuple(params[3])
-					if tuple.Get(0) == "propose" {
-					    srv.proposalsActuallySent++
-					}
-				}
 				for cid := range srv.compAddresses {
 					if senderid != cid {
+					    fmt.Println("Sending msg to",cid, srv.compAddresses[cid],params)
 						srv.sendToComponent(cid, append([]string{"DATA"}, params...)...)
+						fmt.Println("Sent msg to",cid, srv.compAddresses[cid],params, srv.nextMsgId)
+					} else {
+					    fmt.Println("Skipping msg to",cid, srv.compAddresses[cid],params)
 					}
 				}
 			case "REQ":
 				cid := atoi(params[0])
 				mid := srv.nextMsgId
 				srv.nextMsgId++
+				dprintln("Sending RPLY to",cid, srv.compAddresses[cid])
 				srv.sendToComponent(cid, "RPLY", itoa(mid))
 			}
-		}
+		}*/
 	}()
 	return &srv
 }

@@ -14,6 +14,7 @@ type ClusterAgentRegistration struct {
     queuedAgents []netAddress
     port string
     compId int
+    messagesExchanged int
 }
 
 func NewClusterAgentRegistration(port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration{
@@ -23,6 +24,7 @@ func NewClusterAgentRegistration(port int, counterAddress string, nodesAddresses
         nodesAddresses: nodesAddresses,
         agentAddresses: map[netAddress]struct{}{},
         queuedAgents: make([]netAddress, 0),
+        messagesExchanged: 0,
         port: itoa(port),
     }
 }

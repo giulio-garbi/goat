@@ -1,16 +1,19 @@
 package goat
 
-type Message struct {
-    Id int
-    Message Tuple
-    Pred ClosedPredicate
-}
-
 type Agent interface{
-    GetMessageId() int
-    GetFirstMessageId() int
-    Inbox() <-chan Message
-    Outbox() chan<- Message
+    //GetMessageId() int
+    //
+    //Inbox() <-chan Message
+    //Outbox() chan<- Message
+    
     GetComponentId() int
     Start()
+    GetFirstMessageId() int
+    SendMessage(Message)
+    AskMid()
+    GetRplyChan() *unboundChanInt
+    GetDataChan() *unboundChanMessage
+    GetMaxMid() int
+    GetSendTime() map[int]int64
+    GetReceiveTime() map[int]int64
 }

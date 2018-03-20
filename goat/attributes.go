@@ -8,6 +8,14 @@ of transactions is demanded to the library (according to the AbC semantics).
 type Attributes struct {
 	actual map[string]interface{}
 	changes map[string]interface{}
+	onUpdate *signaling
+}
+
+func NewAttributes() *Attributes{
+    at := Attributes{actual: nil,
+	    changes: nil,
+	    onUpdate: newSignaling()}
+    return &at
 }
 
 
@@ -87,11 +95,18 @@ func (attr *Attributes) commit() bool{
 		return attr.changes != nil && len(attr.changes) > 0
 	} else {
 		anyChange := len(attr.changes)>0
+		_ = anyChange
 		for k, v := range attr.changes{
 			attr.actual[k] = v
 		}
 		attr.changes = nil
-		return anyChange
+		if anyChange{
+		    dprintln("attrchange")
+		    attr.onUpdate.Signal()
+		    return true//anyChange
+	    } else {
+	        return false
+	    }
 	}  
 }
 

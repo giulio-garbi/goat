@@ -9,6 +9,9 @@ import (
     "time"
     "reflect"
     "encoding/gob"
+    "os"
+    "os/signal"
+    "syscall"
 )
 
 func itoa(n int) string {
@@ -320,4 +323,11 @@ func timeout(msec int64) <-chan time.Time{
 
 func InitSend() {
     gob.Register(NewTuple())
+    c := make(chan os.Signal, 2)
+    signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+    go func() {
+        <-c
+        //os.Stdout.Flush()
+        os.Exit(1)
+    }()
 }
