@@ -6,6 +6,7 @@ import (
     "sync"
     "fmt"
     "net"
+    "sync/atomic"
 )
 
 // Contains the set of registered agents, and assigns them to the nodes
@@ -16,6 +17,9 @@ type RingAgentRegistration struct {
     policy func(*RingAgentRegistration, []CandidateNode)int
     lock *sync.Mutex
     listenerConns *unboundChanConn
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
 type CandidateNode struct {
@@ -61,10 +65,10 @@ func TreeOnlyLeaf() (func (*RingAgentRegistration, []CandidateNode)int){
 }
 
 func NewRingAgentRegistration(port int, nodesAddresses []string) *RingAgentRegistration{
-    return NewRingAgentRegistrationPolicy(port, nodesAddresses, RingSequentialPolicy())
+    return NewRingAgentRegistrationPolicyPerf(false, port, nodesAddresses, RingSequentialPolicy())
 }
 
-func NewRingAgentRegistrationPolicy(port int, nodesAddresses []string,policy func(*RingAgentRegistration, []CandidateNode)int) *RingAgentRegistration{
+func NewRingAgentRegistrationPolicyPerf(perfTest bool, port int, nodesAddresses []string,policy func(*RingAgentRegistration, []CandidateNode)int) *RingAgentRegistration{
     listenerConns, chnReady := listener(port)
     <-chnReady
     return &RingAgentRegistration{
@@ -73,8 +77,40 @@ func NewRingAgentRegistrationPolicy(port int, nodesAddresses []string,policy fun
         policy: policy,
         lock: &sync.Mutex{},
         listenerConns: listenerConns,
+        perfTest: perfTest,
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
     }
 }
+
+func (tn *RingAgentRegistration) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *RingAgentRegistration) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *RingAgentRegistration) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *RingAgentRegistration) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
 func (rar *RingAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
     conns := []*duplexConn{}
     candNodes := []CandidateNode{}
@@ -86,6 +122,7 @@ func (rar *RingAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
         switch (cmd) {
             case "Register":
                 if err == nil {
+                    rar.onInfrMsgAgent()
                     agPort := params[0]
                     agAddr := netAddress{conn.SrcAddr().Host, agPort}
                     go func(con *duplexConn, addr netAddress){
@@ -96,6 +133,7 @@ func (rar *RingAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
                         which := rar.policy(rar, candNodes)
                         rar.lock.Unlock()
                         conns[which].Send("newAgent", itoa(compId), addr.String())
+                        rar.onInfrMsgSent()
                     }(conn, agAddr)
                 }
             case "ready":
@@ -109,6 +147,7 @@ func (rar *RingAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
                 if readyReceived == len(rar.nodesAddresses) {
                     for _,con := range conns {
                         con.Send("connNext")
+                        rar.onInfrMsgSent()
                     }
                     close(chnStartRegistrations)
                 }
@@ -165,9 +204,16 @@ type RingNode struct{
     counterConn *duplexConn
     chnMids *unboundChanInt
     nextNodeConn *duplexConn
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
 func NewRingNode(port int, counterAddress string, nextNodeAddress string, registrationAddress string) *RingNode {
+    return NewRingNodePerf(false, port, counterAddress, nextNodeAddress, registrationAddress)
+}
+
+func NewRingNodePerf(perfTest bool, port int, counterAddress string, nextNodeAddress string, registrationAddress string) *RingNode {
     return &RingNode{
         counterAddress: counterAddress,
         agents: map[int]*duplexConn{},
@@ -179,6 +225,37 @@ func NewRingNode(port int, counterAddress string, nextNodeAddress string, regist
         nextNodeAddress: nextNodeAddress,
         registrationAddress: registrationAddress,
         lock: &sync.Mutex{},
+        perfTest: perfTest,
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
+    }
+}
+
+func (tn *RingNode) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *RingNode) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *RingNode) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *RingNode) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
     }
 }
 
@@ -202,6 +279,7 @@ func (rn *RingNode) dispatch(idx int) bool {
             for agentId, agentConn := range rn.agents {
                 if agentId != sender{
                     err := agentConn.Send(rn.messages[rn.nid]...)
+                    rn.onInfrMsgSent()
                     if err != nil {
                         delete(rn.agents, agentId)
                         if idx == agentId {
@@ -212,6 +290,7 @@ func (rn *RingNode) dispatch(idx int) bool {
             }
             mParams[1] = itoa(sender) // reset before forwarding
             rn.nextNodeConn.Send(rn.messages[rn.nid]...)
+            rn.onInfrMsgSent()
             delete(rn.messages, rn.nid)
             if idxDead {
                 rn.removedComps[idx] = struct{}{}
@@ -234,6 +313,7 @@ func (rn *RingNode) dispatch(idx int) bool {
 func (rn *RingNode) handleAgent(idx int, conn *duplexConn) {
     rn.lock.Lock()
     conn.Send("Registered", itoa(idx), itoa(rn.nid))
+    rn.onInfrMsgSent()
     fmt.Println("Agent", idx, "started at mid",rn.nid)
     rn.lock.Unlock()
     for {
@@ -247,12 +327,15 @@ func (rn *RingNode) handleAgent(idx int, conn *duplexConn) {
             dprintln("Agent", idx, "failed")
             return
         }
+        rn.onInfrMsgAgent()
         switch(cmd) {
             case "REQ":
                 rn.counterConn.Send("inc")
+                rn.onInfrMsgSent()
                 go func(){
                     mid := <- rn.chnMids.Out
                     conn.Send("RPLY", itoa(mid))
+                    rn.onInfrMsgSent()
                     rn.lock.Lock()
                     rn.rplys[mid] = idx
                     isFailed := rn.dispatch(idx)
@@ -322,10 +405,12 @@ func (rn *RingNode) handlePrevNode(conn *duplexConn) {
                         for agentId, agentConn := range rn.agents {
                             if agentId != sender{
                                 agentConn.Send(rn.messages[rn.nid]...)
+                                rn.onInfrMsgSent()
                             }
                         }
                         mParams[1] = itoa(sender) // reset before forwarding
                         rn.nextNodeConn.Send(rn.messages[rn.nid]...)
+                        rn.onInfrMsgSent()
                         delete(rn.messages, rn.nid)
                     }
                 }
@@ -355,6 +440,7 @@ func (rn *RingNode) Work(timeout int64, timedOut chan<- struct{}){
     rn.counterConn = connectWith(rn.counterAddress)
     <-chnReady
     regConn.Send("ready")
+    rn.onInfrMsgSent()
     for canConnectNext := false; !canConnectNext;{
         cmd, _ := regConn.Receive()
         canConnectNext = cmd == "connNext"
@@ -385,9 +471,16 @@ type RingCounter struct{
     port int
     lock *sync.Mutex
     listenerConns *unboundChanConn
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
 func NewRingCounter(port int) *RingCounter {
+    return NewRingCounterPerf(false, port)
+}
+
+func NewRingCounterPerf(perfTest bool, port int) *RingCounter {
     listenerConns, chnReady := listener(port)
     <-chnReady
     return &RingCounter{
@@ -395,6 +488,37 @@ func NewRingCounter(port int) *RingCounter {
         port: port,
         lock: &sync.Mutex{},
         listenerConns: listenerConns,
+        perfTest: perfTest,
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
+    }
+}
+
+func (tn *RingCounter) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *RingCounter) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *RingCounter) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *RingCounter) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
     }
 }
 
@@ -407,6 +531,7 @@ func (rc *RingCounter) handleConn(conn *duplexConn) {
             rc.mid++
             rc.lock.Unlock()
             conn.Send("counter", itoa(mid))
+            rc.onInfrMsgSent()
         }
     }
 }

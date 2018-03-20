@@ -2,6 +2,7 @@ package goat
 
 import (
     "sync"
+    "sync/atomic"
 )
 
 // Contains the set of registered agents, and assigns them to the nodes
@@ -10,7 +11,7 @@ func NewTreeAgentRegistration(port int, nodesAddresses []string) *TreeAgentRegis
     return NewRingAgentRegistration(port, nodesAddresses)
 }
 func NewTreeAgentRegistrationPolicy(port int, nodesAddresses []string, policy func(*RingAgentRegistration, []CandidateNode)int) *TreeAgentRegistration{
-    return NewRingAgentRegistrationPolicy(port, nodesAddresses, policy)
+    return NewRingAgentRegistrationPolicyPerf(false, port, nodesAddresses, policy)
 }
 
 type TreeNode struct{
@@ -25,6 +26,10 @@ type TreeNode struct{
     childNodesConn []*duplexConn
     lock *sync.Mutex
     registrationAddress string
+    
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
 type tnMessageToForward struct{
@@ -35,6 +40,10 @@ type tnMessageToForward struct{
 }
 
 func NewTreeNode(port int, parentAddress string, registrationAddress string, childNodesAddresses []string) *TreeNode {
+    return NewTreeNodePerf(false, port, parentAddress, registrationAddress, childNodesAddresses)
+}
+
+func NewTreeNodePerf(perfTest bool, port int, parentAddress string, registrationAddress string, childNodesAddresses []string) *TreeNode {
     return &TreeNode{
         counter: 0,
         agents: map[int]*duplexConn{},
@@ -45,6 +54,37 @@ func NewTreeNode(port int, parentAddress string, registrationAddress string, chi
         childNodesAddresses: childNodesAddresses,
         lock: &sync.Mutex{},
         registrationAddress: registrationAddress,
+        perfTest: perfTest,
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
+    }
+}
+
+func (tn *TreeNode) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *TreeNode) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *TreeNode) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *TreeNode) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
     }
 }
 /*
@@ -126,6 +166,7 @@ func (tn *TreeNode) serveParent() {
                 childConn, remainder := tn.resolveLastAddress(path)
                 //fmt.Println(tn.childNodesConn)
                 childConn.Send(append([]string{"RPLY", assMid}, remainder...)...)
+                tn.onInfrMsgSent()
                 dprintln("sent rply", append([]string{"RPLY", assMid}, remainder...))
         case "DATA": // DATA mid src pred msg
                 msg := tnMessageToForward{
@@ -157,6 +198,9 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
                 return
             }
         }
+        if !amANode {
+            tn.onInfrMsgAgent()
+        }
         switch(cmd) {
         case "REQ": 
                 //fmt.Println("got req")
@@ -179,9 +223,11 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
                     }
                     tn.lock.Unlock()
                     childC.Send(append([]string{"RPLY", assMid}, remainder...)...)
+                    tn.onInfrMsgSent()
                     dprintln("sent rply",append([]string{"RPLY", assMid}, remainder...))
                 } else {
                     tn.parentConn.Send(append([]string{"REQ"}, corrPath...)...)
+                    tn.onInfrMsgSent()
                     //fmt.Println("sent req",append([]string{"REQ"}, corrPath...))
                 }
         case "DATA": // DATA mid src pred msg
@@ -198,6 +244,7 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
                 }
                 if !tn.amRoot() {
                     tn.parentConn.Send(tn.prepareMessageForInfrastructure(msg)...)
+                    tn.onInfrMsgSent()
                 }
                 msgId := atoi(params[0])
                 tn.lock.Lock()
@@ -212,6 +259,7 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
 func (tn *TreeNode) handleAgent(idx int, conn *duplexConn) {
     tn.lock.Lock()
     conn.Send("Registered", itoa(idx), itoa(tn.nid))
+    tn.onInfrMsgSent()
     //fmt.Println("Agent", idx, "started at mid",tn.nid, len(tn.childNodesAddresses))
     tn.lock.Unlock()
     tn.serveChild(conn, idx + len(tn.childNodesAddresses))
@@ -242,6 +290,7 @@ func (tn *TreeNode) dispatch() {
             for agentId, agentConn := range tn.agents {
                 if agentId != mFwd.sourceAgent{
                     agentConn.Send(mFwdAgent...)
+                    tn.onInfrMsgSent()
                 }
             }
             
@@ -249,6 +298,7 @@ func (tn *TreeNode) dispatch() {
             for nodeId, nodeConn := range tn.childNodesConn {
                 if nodeId != mFwd.sourceDescendant{
                     nodeConn.Send(mFwdInfr...)
+                    tn.onInfrMsgSent()
                 }
             }
             tn.nid++
@@ -264,8 +314,10 @@ func (tn *TreeNode) Work(timeout int64, timedOut chan<- struct{}){
     <-chnReady
     if len(tn.childNodesAddresses) > 0 {
         regConn.Send("ready")
+        tn.onInfrMsgSent()
     } else {
         regConn.Send("ready","leaf")
+        tn.onInfrMsgSent()
     }
     for canConnectParent := false; !canConnectParent;{
         cmd, _ := regConn.Receive()
