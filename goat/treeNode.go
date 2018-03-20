@@ -149,7 +149,14 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
         dprintln(idx - len(tn.childNodesConn), "with", tn.port)
     }
     for{
-        cmd, params := childConn.Receive()
+        cmd, params,err := childConn.ReceiveErr()
+        if err != nil {
+            if amANode {
+                panic(err) 
+            } else {
+                return
+            }
+        }
         switch(cmd) {
         case "REQ": 
                 //fmt.Println("got req")
