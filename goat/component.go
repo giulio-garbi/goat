@@ -1,7 +1,5 @@
 package goat
 
-import "fmt"
-
 type Component struct {
     agent Agent
     midHandler *midHandler
@@ -43,7 +41,7 @@ func NewComponentWithAttributes(agent Agent, attrInit map[string]interface{}) *C
 	//c.nid = c.ncomm.firstMessageId
 	fMid := c.agent.GetFirstMessageId()
 	inProcess.chnFirstMid <- fMid
-	fmt.Println(c.agent.GetComponentId(),"'s first mid is",fMid)
+	dprintln(c.agent.GetComponentId(),"'s first mid is",fMid)
 
 	return &c
 }
