@@ -162,16 +162,25 @@ type unboundChanMT struct {
 }
 func (uc *unboundChanMT) start(){
     buffer := []msgTime{}
+    var d msgTime
+    stillOpen := true
     for{
-        for len(buffer) > 0 {
+        for stillOpen && len(buffer) > 0 {
             select {
                 case uc.Out <- buffer[0]:
                     buffer = buffer[1:]
-                case d := <- uc.In:
-                    buffer = append(buffer, d)
+                case d, stillOpen = <- uc.In:
+                    if stillOpen {
+                        buffer = append(buffer, d)
+                    }
             }
         }
-        for len(buffer) == 0 {
+        if !stillOpen{
+            for _, mt := range buffer {
+                uc.Out <- mt
+            }
+            close(uc.Out)
+        } else {
             d, stillOpen := <- uc.In
             if !stillOpen {
                 close(uc.Out)
