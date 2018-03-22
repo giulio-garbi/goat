@@ -172,7 +172,11 @@ func (uc *unboundChanMT) start(){
             }
         }
         for len(buffer) == 0 {
-            d := <- uc.In
+            d, stillOpen := <- uc.In
+            if !stillOpen {
+                close(uc.Out)
+                return
+            }
             buffer = append(buffer, d)
         }
     }

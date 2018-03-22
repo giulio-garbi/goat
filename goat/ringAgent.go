@@ -137,20 +137,24 @@ func (ca *RingAgent) GetFirstMessageId() int{
 func toMapIntInt64(m *map[int]int64, c *unboundChanMT) map[int]int64 {
     for quit:=false; !quit; {
         select {
-            case mt := <-c.Out :
-                (*m)[mt.id] = mt.tm
-            default:
-                quit = true
+            case mt, stillOpen := <-c.Out :
+                if stillOpen{
+                    (*m)[mt.id] = mt.tm
+                } else {
+                    quit = true
+                }
         }
     }
     return *m
 }
 
 func (ca *RingAgent) GetReceiveTime() map[int]int64{
+    close(ca.chnReceiveTime.In)
     return toMapIntInt64(&ca.receiveTime, ca.chnReceiveTime)
 }
 
 func (ca *RingAgent) GetSendTime() map[int]int64{
+    close(ca.chnSendTime.In)
     return toMapIntInt64(&ca.sendTime, ca.chnSendTime)
 }
 
