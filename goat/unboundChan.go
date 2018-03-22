@@ -151,3 +151,34 @@ func newUnboundChanConn() *unboundChanConn {
     go func(c *unboundChanConn){c.start()}(&uc)
     return &uc
 }
+
+
+
+
+
+type unboundChanMT struct {
+    In chan msgTime
+    Out chan msgTime
+}
+func (uc *unboundChanMT) start(){
+    buffer := []msgTime{}
+    for{
+        for len(buffer) > 0 {
+            select {
+                case uc.Out <- buffer[0]:
+                    buffer = buffer[1:]
+                case d := <- uc.In:
+                    buffer = append(buffer, d)
+            }
+        }
+        for len(buffer) == 0 {
+            d := <- uc.In
+            buffer = append(buffer, d)
+        }
+    }
+}
+func newUnboundChanMT() *unboundChanMT {
+    uc := unboundChanMT{make(chan msgTime), make(chan msgTime)}
+    go func(c *unboundChanMT){c.start()}(&uc)
+    return &uc
+}

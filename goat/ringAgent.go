@@ -3,6 +3,11 @@ package goat
 import "time"
 import "sync"
 
+type msgTime struct {
+    id int
+    tm int64
+}
+
 type RingAgent struct{
     registrationAddress string
     componentId int
@@ -13,8 +18,10 @@ type RingAgent struct{
     chnMids *unboundChanInt
     chnMessagesIn *unboundChanMessage
     chnMessagesOut chan Message
-    receiveTime sync.Map
-    sendTime sync.Map
+    receiveTime map[int]int64
+    sendTime map[int]int64
+    chnReceiveTime *unboundChanMT
+    chnSendTime *unboundChanMT
     lockST *sync.Mutex
     chnGetMid *unboundChanUnit
 }
@@ -26,8 +33,10 @@ func NewRingAgent(registrationAddress string) *RingAgent{
         chnMessagesIn: newUnboundChanMessage(),
         chnMessagesOut: make(chan Message),
         firstMessageId: -1,
-        receiveTime: sync.Map{},
-        sendTime: sync.Map{},
+        receiveTime: map[int]int64{},
+        sendTime: map[int]int64{},
+        chnReceiveTime: newUnboundChanMT(),
+        chnSendTime: newUnboundChanMT(),
         lockST: &sync.Mutex{},
         chnGetMid: newUnboundChanUnit(),
     }
@@ -70,14 +79,14 @@ func (ca *RingAgent) Start(){
                             Message: decodeTuple(params[3]),
                         }
                         rtime := time.Now().UnixNano()
-                        ca.chnMessagesIn.In <- inMsg
-                        dprintln(inMsg, ca.componentId)
                         ca.lockST.Lock()
                         if mid > ca.maxMid{
                             ca.maxMid = mid
                         } 
                         ca.lockST.Unlock()
-                        ca.receiveTime.Store(mid, rtime)
+                        ca.chnReceiveTime.In <- msgTime{mid, rtime}
+                        ca.chnMessagesIn.In <- inMsg
+                        dprintln(inMsg, ca.componentId)
                     }
             }
         }
@@ -94,7 +103,7 @@ func (ca *RingAgent) Start(){
                         ca.maxMid = msgToSend.Id
                     } 
                     ca.lockST.Unlock()
-                    ca.sendTime.Store(msgToSend.Id, stime)
+                    ca.chnSendTime.In <- msgTime{msgToSend.Id, stime}
                 case <- ca.chnGetMid.Out:
                     connNode.Send("REQ", itoa(ca.componentId))
                     dprintln("R?")
@@ -125,21 +134,24 @@ func (ca *RingAgent) GetFirstMessageId() int{
 }
 
 
-func toMapIntInt64(m *sync.Map) map[int]int64 {
-    mp := map[int]int64{}
-    m.Range(func(key, value interface{}) bool{
-        mp[key.(int)] = value.(int64)
-        return true
-    })
-    return mp
+func toMapIntInt64(m *map[int]int64, c *unboundChanMT) map[int]int64 {
+    for quit:=false; !quit; {
+        select {
+            case mt := <-c.Out :
+                (*m)[mt.id] = mt.tm
+            default:
+                quit = true
+        }
+    }
+    return *m
 }
 
 func (ca *RingAgent) GetReceiveTime() map[int]int64{
-    return toMapIntInt64(&ca.receiveTime)
+    return toMapIntInt64(&ca.receiveTime, ca.chnReceiveTime)
 }
 
 func (ca *RingAgent) GetSendTime() map[int]int64{
-    return toMapIntInt64(&ca.sendTime)
+    return toMapIntInt64(&ca.sendTime, ca.chnSendTime)
 }
 
 func (ca *RingAgent) GetMaxMid() int {
