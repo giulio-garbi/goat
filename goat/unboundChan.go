@@ -180,6 +180,7 @@ func (uc *unboundChanMT) start(){
                 uc.Out <- mt
             }
             close(uc.Out)
+            return
         } else {
             d, stillOpen := <- uc.In
             if !stillOpen {
