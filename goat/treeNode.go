@@ -121,12 +121,12 @@ func (tn *TreeNode) getMessageToForward(params []string, childSource int) tnMess
 }*/
 
 func (tn *TreeNode) prepareMessageForInfrastructure(msg tnMessageToForward)[]string{
-    msg.message[2] = "0"//fmt.Sprintf("P%s", tn.port)
+    msg.message[2] = "-1"//fmt.Sprintf("P%s", tn.port)
     return msg.message
 }
 
 func (tn *TreeNode) prepareMessageForAgent(msg tnMessageToForward)[]string{
-    msg.message[2] = "0"
+    msg.message[2] = "-1"
     return msg.message
 }
 
@@ -177,6 +177,9 @@ func (tn *TreeNode) serveParent() {
                 }
                 msgId := atoi(params[0])
                 tn.lock.Lock()
+                if _, has := tn.messages[msgId]; has {
+                    panic("Got msg "+itoa(msgId)+" twice!")
+                }
                 tn.messages[msgId] = msg
                 tn.dispatch()
                 tn.lock.Unlock()
@@ -235,12 +238,13 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
                 msg := tnMessageToForward{
                     message: append([]string{"DATA"}, params...),
                     fromTheParent: false,
-                    sourceAgent: atoi(params[1]),
                 }
                 if amANode {
                     msg.sourceDescendant = idx
+                    msg.sourceAgent = -1
                 } else {
                     msg.sourceDescendant = -1
+                    msg.sourceAgent = atoi(params[1])
                 }
                 if !tn.amRoot() {
                     tn.parentConn.Send(tn.prepareMessageForInfrastructure(msg)...)
@@ -249,6 +253,9 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
                 msgId := atoi(params[0])
                 tn.lock.Lock()
                 dprintln("got", msgId)
+                if _, has := tn.messages[msgId]; has {
+                    panic("Got msg "+itoa(msgId)+" twice!")
+                }
                 tn.messages[msgId] = msg
                 tn.dispatch()
                 tn.lock.Unlock()
