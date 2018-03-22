@@ -149,12 +149,12 @@ func toMapIntInt64(m *map[int]int64, c *unboundChanMT) map[int]int64 {
 }
 
 func (ca *RingAgent) GetReceiveTime() map[int]int64{
-    close(ca.chnReceiveTime.In)
+    ca.chnReceiveTime.Close()
     return toMapIntInt64(&ca.receiveTime, ca.chnReceiveTime)
 }
 
 func (ca *RingAgent) GetSendTime() map[int]int64{
-    close(ca.chnSendTime.In)
+    ca.chnSendTime.Close()
     return toMapIntInt64(&ca.sendTime, ca.chnSendTime)
 }
 

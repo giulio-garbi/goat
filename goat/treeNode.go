@@ -308,6 +308,7 @@ func (tn *TreeNode) dispatch() {
                     tn.onInfrMsgSent()
                 }
             }
+            
             tn.nid++
         } else {
             break
