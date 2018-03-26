@@ -232,11 +232,11 @@ func GetLetterOp(letter string) string{
 }
 
 /*
-IsIn represents a predicate that is true iff the receiver component has the
+Belong represents a predicate that is true iff the receiver component has the
 attributes elem and tpl both set, tpl is a tuple and elem is an elemnt of tpl.
 */
 
-func In(Par1 interface{}, Par2 interface{}) isin{
+func Belong(Par1 interface{}, Par2 interface{}) isin{
     return isin{Par1, Par2}
 }
 
