@@ -3,6 +3,7 @@ package goat
 import (
     "net"
     "fmt"
+    "sync/atomic"
 )
 
 // Contains the set of registered agents, and informs the nodes about their arrival
@@ -15,9 +16,12 @@ type ClusterAgentRegistration struct {
     port string
     compId int
     messagesExchanged int
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
-func NewClusterAgentRegistration(port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration{
+func NewClusterAgentRegistrationPerf(perfTest bool, port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration{
     return &ClusterAgentRegistration{
         listener: listenToPort(port),
         counterAddress: counterAddress,
@@ -26,6 +30,37 @@ func NewClusterAgentRegistration(port int, counterAddress string, nodesAddresses
         queuedAgents: make([]netAddress, 0),
         messagesExchanged: 0,
         port: itoa(port),
+        perfTest: perfTest,
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
+    }
+}
+
+func (tn *ClusterAgentRegistration) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *ClusterAgentRegistration) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *ClusterAgentRegistration) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *ClusterAgentRegistration) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
     }
 }
 
@@ -40,6 +75,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
             }
             switch cmd {
                 case "Register":
+                    car.onInfrMsgAgent()
                     agPort := params[0]
                     agAddr := netAddress{srcAddr.Host, agPort}
                     car.queuedAgents = append(car.queuedAgents, agAddr)
@@ -52,6 +88,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
             car.compId++
             fmt.Println("Registering component", agCompId)
             for _, ndAddr := range car.nodesAddresses {
+                car.onInfrMsgSent()
                 sendTo(ndAddr, "newAgent", agCompId, agAddr.String())
             }
             
@@ -63,6 +100,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
                 }
                 switch cmd {
                     case "Register":
+                        car.onInfrMsgAgent()
                         nagPort := params[0]
                         nagAddr := netAddress{srcAddr.Host, nagPort}
                         car.queuedAgents = append(car.queuedAgents, nagAddr)
@@ -71,6 +109,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
                 }
             }
             
+            car.onInfrMsgSent()
             sendTo(car.counterAddress, "read", car.port)
             // get current count
             msgCnt := ""
@@ -82,6 +121,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
                 }
                 switch cmd {
                     case "Register":
+                        car.onInfrMsgAgent()
                         nagPort := params[0]
                         nagAddr := netAddress{srcAddr.Host, nagPort}
                         car.queuedAgents = append(car.queuedAgents, nagAddr)
@@ -92,6 +132,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
                 }
             }
             
+            car.onInfrMsgSent()
             sendToAddress(agAddr, "Registered", agCompId, msgCnt)
             car.queuedAgents = car.queuedAgents[1:]
         }
@@ -108,13 +149,19 @@ type ClusterMessageQueue struct{
     listener net.Listener
     messages [][]string
     queued []netAddress
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
-func NewClusterMessageQueue(port int) *ClusterMessageQueue {
+func NewClusterMessageQueuePerf(perfTest bool, port int) *ClusterMessageQueue {
     return &ClusterMessageQueue{
         listener: listenToPort(port),
         messages: make([][]string, 0),
         queued: make([]netAddress, 0),
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
+        perfTest: perfTest,
     }
 }
 
@@ -136,10 +183,39 @@ func (cmq *ClusterMessageQueue) Work(timeout int64, timedOut chan<- struct{}){
         }
         if len(cmq.messages) > 0 && len(cmq.queued) > 0 {
             fmt.Println("Message to be served:", cmq.messages[0])
+            cmq.onInfrMsgSent()
             sendToAddress(cmq.queued[0], append([]string{"msg"}, cmq.messages[0]...)...)
             cmq.messages = cmq.messages[1:]
             cmq.queued = cmq.queued[1:]
         }
+    }
+}
+
+func (tn *ClusterMessageQueue) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *ClusterMessageQueue) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *ClusterMessageQueue) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *ClusterMessageQueue) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
     }
 }
 
@@ -156,9 +232,12 @@ type ClusterNode struct{
     listener net.Listener
     agents map[int]string
     port string
+    infrMessagesFromAgents uint64
+    infrMessagesSent uint64
+    perfTest bool
 }
 
-func NewClusterNode(port int, messageQueueAddress string, counterAddress string, registrationAddress string) *ClusterNode {
+func NewClusterNodePerf(perfTest bool, port int, messageQueueAddress string, counterAddress string, registrationAddress string) *ClusterNode {
     return &ClusterNode{
         messageQueueAddress: messageQueueAddress,
         counterAddress: counterAddress,
@@ -166,12 +245,16 @@ func NewClusterNode(port int, messageQueueAddress string, counterAddress string,
         listener: listenToPort(port),
         agents: map[int]string{},
         port: itoa(port),
+        infrMessagesFromAgents: 0,
+        infrMessagesSent: 0,
+        perfTest: perfTest,
     }
 }
 
 func (cn *ClusterNode) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for{
+        cn.onInfrMsgSent()
         sendTo(cn.messageQueueAddress, "get", cn.port)
         var reqFrom int //contains the agent id that sent the req
         for deliveredMessage := false; !deliveredMessage; {
@@ -186,13 +269,16 @@ func (cn *ClusterNode) Work(timeout int64, timedOut chan<- struct{}){
                     msgCmd := params[0]
                     msgParams := params[1:]
                     if msgCmd == "REQ" {
+                        cn.onInfrMsgAgent()
                         reqFrom = atoi(msgParams[0])
+                        cn.onInfrMsgSent()
                         sendTo(cn.counterAddress, "inc", cn.port)
                     } else {
                         sender := atoi(msgParams[1])
                         msgParams[1] = "0"
                         for agentId, agentAddr := range cn.agents {
                             if agentId != sender{
+                                cn.onInfrMsgSent()
                                 sendTo(agentAddr, params...)
                             }
                         }
@@ -203,14 +289,43 @@ func (cn *ClusterNode) Work(timeout int64, timedOut chan<- struct{}){
                     agCompId := params[0]
                     agAddr := params[1]
                     cn.agents[atoi(agCompId)] = agAddr
+                    cn.onInfrMsgSent()
                     sendTo(cn.registrationAddress, "newAgentKnown")
                     
                 case "count": // a message count => a REQ was filed and I must reply with this mid
                     mid := params[0]
+                    cn.onInfrMsgSent()
                     sendTo(cn.agents[reqFrom], "RPLY", mid)
                     deliveredMessage = true
             }    
         }
+    }
+}
+func (tn *ClusterNode) onInfrMsgAgent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesFromAgents, 1)
+    }
+}
+
+func (tn *ClusterNode) onInfrMsgSent() {
+    if tn.perfTest {
+        atomic.AddUint64(&tn.infrMessagesSent, 1)
+    }
+}
+
+func (tn *ClusterNode) GetInfrMsgAgent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesFromAgents)
+    } else {
+        panic("No performance tests required!")
+    }
+}
+
+func (tn *ClusterNode) GetInfrMsgSent() uint64 {
+    if tn.perfTest {
+        return atomic.LoadUint64(&tn.infrMessagesSent)
+    } else {
+        panic("No performance tests required!")
     }
 }
 
