@@ -2,7 +2,6 @@ package goat
 
 import (
     "net"
-    "fmt"
     "sync/atomic"
 )
 
@@ -86,7 +85,7 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
             agAddr := car.queuedAgents[0]
             agCompId := itoa(car.compId)
             car.compId++
-            fmt.Println("Registering component", agCompId)
+            dprintln("Registering component", agCompId)
             for _, ndAddr := range car.nodesAddresses {
                 car.onInfrMsgSent()
                 sendTo(ndAddr, "newAgent", agCompId, agAddr.String())
@@ -175,14 +174,14 @@ func (cmq *ClusterMessageQueue) Work(timeout int64, timedOut chan<- struct{}){
         }
         switch cmd {
             case "add":
-                fmt.Println("New Message:", params)
+                dprintln("New Message:", params)
                 cmq.messages = append(cmq.messages, params)
             case "get":
                 srcPort := params[0]
                 cmq.queued = append(cmq.queued, netAddress{srcAddr.Host, srcPort})
         }
         if len(cmq.messages) > 0 && len(cmq.queued) > 0 {
-            fmt.Println("Message to be served:", cmq.messages[0])
+            dprintln("Message to be served:", cmq.messages[0])
             cmq.onInfrMsgSent()
             sendToAddress(cmq.queued[0], append([]string{"msg"}, cmq.messages[0]...)...)
             cmq.messages = cmq.messages[1:]
