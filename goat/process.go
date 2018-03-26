@@ -391,7 +391,7 @@ pr states the property a component must satisfy to receive msg.
 */
 func (p *Process) Send(msg Tuple, pr Predicate){
     //p.SendUpd(msg, pr, func(*Attributes){})
-    p.WaitSendUpd(True(), msg, pr, func(*Attributes){})
+    p.GSendUpd(True(), msg, pr, func(*Attributes){})
 }
 
 /*
@@ -410,14 +410,14 @@ func (p *Process) SendUpd(msg Tuple, pr Predicate, upd func(*Attributes)){
 		    return ThenSend(cmsg, cpr)
 		}
 	}, false)*/
-	p.WaitSendUpd(True(), msg, pr, upd)
+	p.GSendUpd(True(), msg, pr, upd)
 }
 
 func (p *Process) WaitSend(cond Predicate, msg Tuple, pr Predicate){
-    p.WaitSendUpd(cond, msg, pr, func(*Attributes){})
+    p.GSendUpd(cond, msg, pr, func(*Attributes){})
 }
 
-func (p *Process) WaitSendUpd(cond Predicate, msg Tuple, pr Predicate, upd func(*Attributes)){
+func (p *Process) GSendUpd(cond Predicate, msg Tuple, pr Predicate, upd func(*Attributes)){
     p.sendrec(func(attr *Attributes, receiving bool) SendReceive {
 		if receiving || !cond.CloseUnder(attr).Satisfy(attr) {
 			return ThenFail()
