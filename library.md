@@ -65,14 +65,15 @@ The predicate is a boolean expression that can refer to the attributes of both t
 * `goat.GreaterThanOrEqual(v1, v2)` that is satisfied iff `v1` evaluation is greater than or equal to `v2` evaluation;
 * `goat.LessThan(v1, v2)` that is satisfied iff `v1` evaluation is less than `v2` evaluation;
 * `goat.LessThanOrEqual(v1, v2)` that is satisfied iff `v1` evaluation is less than or equal to `v2` evaluation;
-* `goat.Belongs(item, tuple)` that is satisfied iff `tuple` evaluates to something of type `goat.Tuple` and `item` evaluation is an element of `tuple` evaluation;
+* `goat.Belong(item, tuple)` that is satisfied iff `tuple` evaluates to something of type `goat.Tuple` and `item` evaluation is an element of `tuple` evaluation;
 * `goat.True()` that is always satisfied;
 * `goat.False()` that is never satisfied.
 
 Values can be expressed as:
 * an immediate value, that evaluates to the same value;
 * `goat.Comp(attr_name)` that evaluates to the value associated to the attribute `attr_name` in the sending component; if `attr_name` is not set, the system will crash;
-* `goat.Receiver(attr_name)` that evaluates to the value associated to the attribute `attr_name` in the receiving component; if `attr_name` is not set, the (direct) parent predicate is not satisfied.
+* `goat.Evaluate(f, arg1, arg2, ..., argn)` that evaluates to `f(e_arg1, e_arg2, ..., e_argn)`, where `f` is of type `func(...interface{}) interface{}` and each `e_argi` is the evaluation of argument `argi`;
+* `goat.Receiver(attr_name)` that evaluates to the value associated to the attribute `attr_name` in the receiving component; if `attr_name` is not set, the (direct) parent predicate is not satisfied; `goat.Receiver` cannot be used inside an `goat.Evaluate` expression.
 
 For example, to send the message to each component whose age is less than 3 and has the same name as the sender component: `goat.And(goat.LessThan(goat.Receiver("age"), 3), goat.Equals(goat.Comp("name"), goat.Receiver("name")))`.
 
