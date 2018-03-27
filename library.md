@@ -7,7 +7,7 @@ The skeleton of a component definition follows:
     package main
 
     import (
-        "github.com/goat-pakage/goat/goat"
+        "github.com/giulio-garbi/goat/goat"
     )
 
     func main(){
@@ -34,7 +34,10 @@ Tree | `goat.NewTreeAgent(registrationAddressAndPort)` |
 
 Note that an agent must be associated with at most one component: that is, for each component you have to instantiate one different agent. 
 
-` goat.NewProcess(comp).Run(func(p *goat.Process) {...})` sets up the behaviour of the component and starts it. The ellipsis must be replaced by the behaviour you want that component to have. `p` represents the `goat.Process` object, that is the access point to the functions that allows the specification of the behaviour.
+` goat.NewProcess(comp).Run(func(p *goat.Process) {...})` sets up the behaviour of the component and starts it. The ellipsis must be replaced by the behaviour you want that component to have. `p` represents the `goat.Process` object, that is the access point to the functions that allows the specification of the behaviour. You can also specify more than one process to run in parallel by listing them all as arguments of the `Run` call, e.g. ` goat.NewProcess(comp).Run(func(p *goat.Process) {...proc1...}, func(p *goat.Process) {...proc2...}, ..., func(p *goat.Process) {...procn...})` 
+
+> **Note:** define all components __before__ calling `Run` on any of them. Infrastructures will start sending messages once all the defined components have a behaviour. If a component has not been defined yet when all other started their behaviour, it might lose some of the first messages. Indeed, an infrastructure cannot know if a system is complete at any point, but if some components haven't expressed their behaviour the infrastructure waits for them.
+
 #### How to define a process with the `goat.Process` API?
 The `goat.Process` API was designed to match as much as possible the AbC constructs. In the following, we assume that `proc` is an object of type `goat.Process`.
 
@@ -62,6 +65,7 @@ The predicate is a boolean expression that can refer to the attributes of both t
 * `goat.GreaterThanOrEqual(v1, v2)` that is satisfied iff `v1` evaluation is greater than or equal to `v2` evaluation;
 * `goat.LessThan(v1, v2)` that is satisfied iff `v1` evaluation is less than `v2` evaluation;
 * `goat.LessThanOrEqual(v1, v2)` that is satisfied iff `v1` evaluation is less than or equal to `v2` evaluation;
+* `goat.Belongs(item, tuple)` that is satisfied iff `tuple` evaluates to something of type `goat.Tuple` and `item` evaluation is an element of `tuple` evaluation;
 * `goat.True()` that is always satisfied;
 * `goat.False()` that is never satisfied.
 
@@ -92,8 +96,8 @@ for i:=0; ; i++{
 ```
 > Note that the predicate (`listeningToMe`) does not name the students. Rather, it references any receiver listening to the teacher's subject. This allows a great level of flexibility, as the set of listeners might vary over time seamlessly.
 
-##### Send a message and update the environment
-`proc.SendUpd(message, predicate, updFnc)` is a function that updates the environment after sending a message. The role of the `message` and `predicate` is the same as in `proc.Send`. `updFnc` is a function that gets a reference to the environment and alters it accordingly. The type of `updFnc` is `func(attr *goat.Attributes)`. `attr` supports four methods:
+##### Wait for a condition, then send a message and update the environment
+`proc.GSendUpd(guard, message, predicate, updFnc)` is a function that waits until a guard is satisfied, and then sends a message and updates the environment. The role of the `message` and `predicate` is the same as in `proc.Send`. `guard` is a guard that can refer to local attributes to express a condition to be waited for before sending the message; it is expressed with the same API for predicates. `updFnc` is a function that gets a reference to the environment and alters it accordingly. The type of `updFnc` is `func(attr *goat.Attributes)`. `attr` supports four methods:
 * `value, has := attr.Get(attr_name)` returns:
   - if the attribute `attr_name` is set in the environment, the value associated with the attribute and `true`;
   - otherwise, `nil` and `false`.
@@ -110,7 +114,7 @@ isAsker := goat.Equals(goat.Receiver("id"), asker)
 answered := func(attr *goat.Attributes){
     attr.Set("questions", attr.GetValue("questions").(int) - 1)
 }
-proc.SendUpd(goat.NewTuple("answer", answer), isAsker, answered)
+proc.GSendUpd(goat.True(), goat.NewTuple("answer", answer), isAsker, answered)
 ```
 
 ##### Receive a message
@@ -120,6 +124,7 @@ When a component receives a message from some _other_ component, it tests if its
 
 The message (of type `goat.Tuple`) can be tested with this API:
 * `msg.IsLong(n)` returns if the message has exactly `n` fields;
+* `msg.Length()` returns the number of fileds of the message;
 * `msg.Get(i)` returns the field of index `i` in the message, or crashes if `i` is bigger than or equal the lenght of the message or negative.
 
 For example, suppose that you want to sum a set of numbers until you get a "stop". A possible solution is:
@@ -174,7 +179,7 @@ func answerQuestion(question string, asker int) func(proc *goat.Process) {
 	return func(proc *goat.Process){
 		answer := fmt.Sprint("Answer to "+question)
 		isAsker := goat.Equals(goat.Receiver("id"), asker)
-		proc.SendUpd(goat.NewTuple("answer", answer), isAsker, 
+		proc.GSendUpd(goat.True(), goat.NewTuple("answer", answer), isAsker, 
 		    func(attr *goat.Attributes){
 		        attr.Set("questions", attr.GetValue("questions").(int) - 1)
 	        })
@@ -198,17 +203,17 @@ func listenQuestions(proc *goat.Process){
 		asker := question.Get(2).(int)
 		answer := fmt.Sprint("Answer to "+questionTxt)
 		isAsker := goat.Equals(goat.Receiver("id"), asker)
-		proc.SendUpd(goat.NewTuple("answer", answer), isAsker, 
+		proc.GSendUpd(goat.True(), goat.NewTuple("answer", answer), isAsker, 
 		    func(attr *goat.Attributes){
 		        attr.Set("questions", attr.GetValue("questions").(int) - 1)
 	        })
 	}
 }
 ```
-> Suppose that the component receives two questions, q1 and q2. The `Receive` accepts q1, then the process builds the answer and then sends it to the asker via `SendUpd`. `SendUpd` (according to the AbC semantics) rejects all pending messages, hence q2 is discarded and will never be answered. The right solution creates a new process that sends the answer and the main one can accept all the pending questions.
+> Suppose that the component receives two questions, q1 and q2. The `Receive` accepts q1, then the process builds the answer and then sends it to the asker via `GSendUpd`. `GSendUpd` (according to the AbC semantics) rejects all pending messages, hence q2 is discarded and will never be answered. The right solution creates a new process that sends the answer and the main one can accept all the pending questions.
 
 ##### Spawn a process
-`proc.Spawn(procFnc)` creates a new process on the same component of `proc` that behaves as `procFnc`. `procFnc` is of type `func(p *goat.Process)`.
+`proc.Spawn(procFnc1, procFnc2, ..., procFncn)` creates a new process on the same component of `proc` that behaves as the parallel composition of `procFnc1`, `procFnc2`, ..., and `procFncn`. Each `procFnci` is of type `func(p *goat.Process)`.
 
 ##### Call a process
 `proc.Call(procFnc)` makes `proc`behave as `procFnc`. `procFnc` is of type `func(p *goat.Process)`.
@@ -237,7 +242,7 @@ func holdLesson(subject string) func (*goat.Process){
 
 Each case is expressed with a call to `goat.Case(pred, action, then)`. `pred` is a predicate over the environment. `action` is one of the following calls:
 * `goat.ThenSend(message, predicate)` that sends a message (see the `proc.Send` description for more details);
-* `goat.ThenSendUpdate(message, predicate, updFnc)` that sends a message and alters the environment (see the `proc.SendUpd` description for more details);
+* `goat.ThenSendUpdate(message, predicate, updFnc)` that sends a message and alters the environment (see the `proc.GSendUpd` description for more details);
 * `goat.ThenReceive(acceptFnc)` that receives a message (see the `proc.Receive` description for more details); if the message is rejected, the whole `Select` is retried;
 * `goat.ThenFail()` that fails the call and retries the whole `Select`.
 
@@ -395,7 +400,7 @@ func answerQuestion(question string, asker int) func(proc *goat.Process) {
 	return func(proc *goat.Process){
 		answer := fmt.Sprint("Answer to "+question)
 		isAsker := goat.Equals(goat.Receiver("id"), asker)
-		proc.SendUpd(goat.NewTuple("answer", answer), isAsker, 
+		proc.GSendUpd(goat.True(), goat.NewTuple("answer", answer), isAsker, 
 		    func(attr *goat.Attributes){
 		        attr.Set("questions", attr.GetValue("questions").(int) - 1)
 	        })
@@ -413,7 +418,7 @@ It can be instantiated with:
     package main
 
     import (
-        "github.com/goat-pakage/goat/goat"
+        "github.com/giulio-garbi/goat/goat"
     )
 
     func main(){
@@ -438,7 +443,7 @@ The following code is used to instantiate the registration node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -454,7 +459,7 @@ The following code instantiates the message queue
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -469,7 +474,7 @@ The following code instantiates the provider of fresh message ids
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -484,7 +489,7 @@ The following code instantiates a serving node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -510,7 +515,7 @@ The following code is used to instantiate the registration node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -526,7 +531,7 @@ The following code instantiates the provider of fresh message ids
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -541,7 +546,7 @@ The following code instantiates a serving node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -562,7 +567,7 @@ The following code is used to instantiate the registration node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -578,7 +583,7 @@ The following code instantiates the root node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
@@ -595,7 +600,7 @@ The following code instantiates the a non-root serving node
 	package main
 
 	import (
-	    "github.com/goat-pakage/goat/goat"
+	    "github.com/giulio-garbi/goat/goat"
 	)
 
 	func main(){
