@@ -62,7 +62,7 @@ func (mh *midHandler) start() {
                 mh.agent.AskMid()
                 
             case mid := <- mh.chnFreshMid.Out:
-                //fmt.Println("Prepare a send", mid)
+                dprintln("Prepare a send", mid)
                 stoppedChans := map[chan struct{}]struct{}{}
                 toBeAddedChans := map[chan struct{}]struct{}{}
                 midConsumed := false
@@ -143,13 +143,13 @@ func (mh *midHandler) start() {
             
             case csnd := <- mh.chnNewSend:
                 sendingChans[csnd] = struct{}{}
-                if len(sendingChans) == 1 {
+                //if len(sendingChans) == 1 {
                     if mh.askMidPolicy != ampUnconditional{
                         mh.chnTimeToAskMid = make(chan struct{})
                         mh.askMidPolicy = ampUnconditional
                         close(mh.chnTimeToAskMid)
                     }
-                }
+                //} 
         }
     }
 }

@@ -2,7 +2,6 @@ package goat
 
 import (
 	"time"
-	//"fmt"
 )
 
 /*
@@ -53,10 +52,11 @@ func (p *Process) Run(procFncs ...func(p *Process)) {
 	}
 	p.Comp.chnSubscribe <- procs
 	for i, pr := range procs{
-	    go func(q *Process, procFnc func(p *Process)){
+	    go func(q *Process, procFnc func(p *Process), i int){
+	        //fmt.Println(i)
 	        q.Call(procFnc)
 		    q.unsubscribe()
-	    }(pr, procFncs[i])
+	    }(pr, procFncs[i], i)
 	}
 	/*go func() {
 		p.Comp.chnSubscribe <- p

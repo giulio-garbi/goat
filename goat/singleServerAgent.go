@@ -223,3 +223,15 @@ func (ssa *SingleServerAgent) receiveFromServer() (string, []string) {
     }
     return tokens[0], tokens[1:]
 }
+
+func (ca *SingleServerAgent) GetReceiveTime() map[int]int64{
+    panic("")
+}
+
+func (ca *SingleServerAgent) GetSendTime() map[int]int64{
+    panic("")
+}
+
+func (ca *SingleServerAgent) GetMaxMid() int {
+    return -1 
+}

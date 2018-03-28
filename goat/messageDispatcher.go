@@ -1,5 +1,7 @@
 package goat
 
+//import "fmt"
+
 type messageDispatcher struct {
     chnMessage *unboundChanMessage
     chnSubscribe chan []*Process
@@ -26,6 +28,7 @@ func (md *messageDispatcher) goroutine() {
     for {
         select{
             case msg := <- md.chnMessage.Out:
+                toSubscribe := map[*Process]struct{}{}
                 unsubscribedProcs := map[*Process]struct{}{}
                 accepted := false
                 i := 1
@@ -40,7 +43,7 @@ func (md *messageDispatcher) goroutine() {
                                 quit = true
                             case prs := <- md.chnSubscribe:
                                 for _, pr := range prs{
-                                    subscribedProcs[pr] = struct{}{}
+                                    toSubscribe[pr] = struct{}{}
                                 }
                             case pr := <- md.chnUnsubscribe:
                                 unsubscribedProcs[pr] = struct{}{}
@@ -62,7 +65,7 @@ func (md *messageDispatcher) goroutine() {
                                     quit = true
                                 case prs := <- md.chnSubscribe:
                                     for _, pr := range prs{
-                                        subscribedProcs[pr] = struct{}{}
+                                        toSubscribe[pr] = struct{}{}
                                     }
                                 case pr := <- md.chnUnsubscribe:
                                     unsubscribedProcs[pr] = struct{}{}
@@ -73,6 +76,10 @@ func (md *messageDispatcher) goroutine() {
                             }
                         }
                     }
+                }
+                //fmt.Println("Served",msg.Id)
+                for p := range toSubscribe{
+                    subscribedProcs[p] = struct{}{}
                 }
                 for p := range unsubscribedProcs{
                     delete(subscribedProcs, p)
