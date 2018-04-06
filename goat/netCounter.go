@@ -13,6 +13,10 @@ type ClusterCounter struct {
     perfTest bool
 }
 
+func NewClusterCounter(port int) *ClusterCounter{
+    return NewClusterCounterPerf(false, port)
+}
+
 func NewClusterCounterPerf(perfTest bool, port int) *ClusterCounter{
     return &ClusterCounter{
         listener: listenToPort(port),
