@@ -221,6 +221,26 @@ spawn(P)
 
 `P` is the name of a process. `P` will inherit a copy of the set of local attributes of the current process. The current process and the process just created will run concurrently on the same component. As any other pair of process, they share component attributes but not the set of local attributes.
 
+It is also possible to spawn a process once a message is received. To do this, the syntax op the receive is:
+```
+receive (pred) {lattr1, lattr2, ..., lattrn} [attr1 := expr1, attr2 := expr2, ..., attrm := exprm] spawn(P) print ("output");
+```
+or
+```
+receive {
+    case (pred1) {lattr1_1, lattr1_2, ..., lattr1_n1} [attr1_1 := expr1_1, attr1_2 := expr1_2, ..., attr1_m := expr1_m1] spawn(P1) print ("output1"): {
+        ... statements1 ...
+    }
+    
+    case (pred2) {lattr2_1, lattr2_2, ..., lattr2_n2} [attr2_1 := expr2_1, attr2_2 := expr2_2, ..., attr2_l := expr2_m2] spawn(P2) print ("output2"): {
+        ... statements2 ...
+    }
+    
+    ...
+} 
+```
+The `spawn` clause is entirely optional, and it might be present on some/all/none of the cases.
+
 ### Environment
 The environment is defined as:
 `environment E {
