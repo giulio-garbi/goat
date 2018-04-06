@@ -424,10 +424,8 @@ It can be instantiated with:
 
     func main(){
         port := 17000
-        var timeoutMsec int64 = 15000
-        term := make(chan struct{})
-        goat.RunCentralServer(port, term , timeoutMsec)
-        <-term
+        goat.RunCentralServerLoop(port)
+        <- make(chan struct{})
     }
     
 Components can connect to the infrastructure by calling `goat.NewSingleServerAgent("<serverAddress>:<port>")` with the address of the central node and the listening port provided (here 17000).
@@ -450,9 +448,8 @@ The following code is used to instantiate the registration node
 	func main(){
 	    port := 17000
 	    nodesAddresses := []string{} // list of all the serving nodes in the cluster
-	    chnTimeout := make(chan struct{})
-	    go goat.NewClusterAgentRegistration(port, "<counterAddress>:<cPort>", nodesAddresses).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewClusterAgentRegistration(port, "<counterAddress>:<cPort>", nodesAddresses).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 The following code instantiates the message queue
@@ -465,9 +462,8 @@ The following code instantiates the message queue
 
 	func main(){
 	    port := 17001
-	    chnTimeout := make(chan struct{})
-	    go goat.NewClusterMessageQueue(port).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewClusterMessageQueue(port).WorkLoop()
+	    <- make(chan struct{})
 	}
 	
 The following code instantiates the provider of fresh message ids
@@ -480,9 +476,8 @@ The following code instantiates the provider of fresh message ids
 
 	func main(){
 	    port := 17002
-	    chnTimeout := make(chan struct{})
-	    go goat.NewClusterCounter(port).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewClusterCounter(port).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 The following code instantiates a serving node
@@ -495,12 +490,11 @@ The following code instantiates a serving node
 
 	func main(){
 	    port := 17003
-	    chnTimeout := make(chan struct{})
 	    messageQueueAddress := "..."
 	    freshMidAddress := "..."
 	    registrationAddress := "..."
-	    go goat.NewClusterNode(port, messageQueueAddress, freshMidAddress, registrationAddress).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewClusterNode(port, messageQueueAddress, freshMidAddress, registrationAddress).WorkLoop()
+	    <- make(chan struct{})
 	}
 	
 Components can connect to the infrastructure by calling `goat.NewClusterAgent("<messageQueueAddress>:<port>", "<registrationAddress>:<port>")` with the address of the message queue node and the registration node with the ports provided (here 17001 and 17000).
@@ -522,9 +516,8 @@ The following code is used to instantiate the registration node
 	func main(){
 	    port := 17000
 	    nodesAddresses := []string{} // list of all the serving nodes in the cluster
-	    chnTimeout := make(chan struct{})
-	    go goat.NewRingAgentRegistration(port, nodesAddresses).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewRingAgentRegistration(port, nodesAddresses).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 The following code instantiates the provider of fresh message ids
@@ -537,9 +530,8 @@ The following code instantiates the provider of fresh message ids
 
 	func main(){
 	    port := 17001
-	    chnTimeout := make(chan struct{})
-	    go goat.NewRingCounter(port).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewRingCounter(port).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 The following code instantiates a serving node
@@ -552,12 +544,11 @@ The following code instantiates a serving node
 
 	func main(){
 	    port := 17002
-	    chnTimeout := make(chan struct{})
 	    counterAddress := "..."
 	    nextNodeAddress := "..."
 	    registrationAddress := "..."
-	    go goat.NewRingNode(port, counterAddress, nextNodeAddress, registrationAddress).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewRingNode(port, counterAddress, nextNodeAddress, registrationAddress).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 Components can connect to the infrastructure by calling `goat.NewRingAgent("<registrationAddress>:<port>")` with the address of the registration node and the listening port provided (here 17000).
@@ -575,9 +566,8 @@ The following code is used to instantiate the registration node
 	func main(){
 	    port := 17000
 	    nodesAddresses := []string{} // list of all the serving nodes in the cluster
-	    chnTimeout := make(chan struct{})
-	    go goat.NewTreeAgentRegistration(port, nodesAddresses).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewTreeAgentRegistration(port, nodesAddresses).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 The following code instantiates the root node
@@ -590,11 +580,10 @@ The following code instantiates the root node
 
 	func main(){
 	    port := 17001
-	    chnTimeout := make(chan struct{})
 	    registrationAddress := "..."
 	    childNodesAddresses := []string{...}
-	    go goat.NewTreeNode(port, "", registrationAddress, childNodesAddresses).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewTreeNode(port, "", registrationAddress, childNodesAddresses).WorkLoop()
+	    <- make(chan struct{})
 	}
 	
 
@@ -608,12 +597,11 @@ The following code instantiates the a non-root serving node
 
 	func main(){
 	    port := 17002
-	    chnTimeout := make(chan struct{})
 	    childNodesAddresses := []string{}
 	    parentAddress := "..."
 	    registrationAddress := "..."
-	    go goat.NewTreeNode(port, parentAddress, registrationAddress, childNodesAddresses).Work(0, chnTimeout)
-	    <-chnTimeout
+	    go goat.NewTreeNode(port, parentAddress, registrationAddress, childNodesAddresses).WorkLoop()
+	    <- make(chan struct{})
 	}
 
 Components can connect to the infrastructure by calling `goat.NewTreeAgent("<registrationAddress>:<port>")` with the address of the registration node and the listening port provided (here 17000).
