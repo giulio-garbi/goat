@@ -451,7 +451,7 @@ The following code is used to instantiate the registration node
 	    port := 17000
 	    nodesAddresses := []string{} // list of all the serving nodes in the cluster
 	    chnTimeout := make(chan struct{})
-	    go goat.NewClusterAgentRegistration(port, "<messageQueueAddress>:<mqPort>", nodesAddresses).Work(0, chnTimeout)
+	    go goat.NewClusterAgentRegistration(port, "<counterAddress>:<cPort>", nodesAddresses).Work(0, chnTimeout)
 	    <-chnTimeout
 	}
 
@@ -538,7 +538,7 @@ The following code instantiates the provider of fresh message ids
 	func main(){
 	    port := 17001
 	    chnTimeout := make(chan struct{})
-	    go goat.NewClusterCounter(port).Work(0, chnTimeout)
+	    go goat.NewRingCounter(port).Work(0, chnTimeout)
 	    <-chnTimeout
 	}
 
@@ -553,9 +553,10 @@ The following code instantiates a serving node
 	func main(){
 	    port := 17002
 	    chnTimeout := make(chan struct{})
-	    freshMidAddress := "..."
+	    counterAddress := "..."
 	    nextNodeAddress := "..."
-	    go goat.NewRingNode(port, freshMidAddress, nextNodeAddress).Work(0, chnTimeout)
+	    registrationAddress := "..."
+	    go goat.NewRingNode(port, counterAddress, nextNodeAddress, registrationAddress).Work(0, chnTimeout)
 	    <-chnTimeout
 	}
 
@@ -590,8 +591,9 @@ The following code instantiates the root node
 	func main(){
 	    port := 17001
 	    chnTimeout := make(chan struct{})
+	    registrationAddress := "..."
 	    childNodesAddresses := []string{...}
-	    go goat.NewTreeNode(port, "", childNodesAddresses).Work(0, chnTimeout)
+	    go goat.NewTreeNode(port, "", registrationAddress, childNodesAddresses).Work(0, chnTimeout)
 	    <-chnTimeout
 	}
 	
@@ -608,8 +610,9 @@ The following code instantiates the a non-root serving node
 	    port := 17002
 	    chnTimeout := make(chan struct{})
 	    childNodesAddresses := []string{}
-	    parentAddress := ...
-	    go goat.NewTreeNode(port, parentAddress, childNodesAddresses).Work(0, chnTimeout)
+	    parentAddress := "..."
+	    registrationAddress := "..."
+	    go goat.NewTreeNode(port, parentAddress, registrationAddress, childNodesAddresses).Work(0, chnTimeout)
 	    <-chnTimeout
 	}
 
