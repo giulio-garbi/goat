@@ -20,6 +20,10 @@ type ClusterAgentRegistration struct {
     perfTest bool
 }
 
+func NewClusterAgentRegistration(port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration {
+    return NewClusterAgentRegistrationPerf(false, port, counterAddress, nodesAddresses)
+}
+
 func NewClusterAgentRegistrationPerf(perfTest bool, port int, counterAddress string, nodesAddresses []string) *ClusterAgentRegistration{
     return &ClusterAgentRegistration{
         listener: listenToPort(port),
@@ -153,6 +157,10 @@ type ClusterMessageQueue struct{
     perfTest bool
 }
 
+func NewClusterMessageQueue(port int) *ClusterMessageQueue {
+    return NewClusterMessageQueuePerf(false, port)
+}
+
 func NewClusterMessageQueuePerf(perfTest bool, port int) *ClusterMessageQueue {
     return &ClusterMessageQueue{
         listener: listenToPort(port),
@@ -234,6 +242,10 @@ type ClusterNode struct{
     infrMessagesFromAgents uint64
     infrMessagesSent uint64
     perfTest bool
+}
+
+func NewClusterNode(port int, messageQueueAddress string, counterAddress string, registrationAddress string) *ClusterNode {
+    return NewClusterNodePerf(false, port, messageQueueAddress, counterAddress, registrationAddress)
 }
 
 func NewClusterNodePerf(perfTest bool, port int, messageQueueAddress string, counterAddress string, registrationAddress string) *ClusterNode {
