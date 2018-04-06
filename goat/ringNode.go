@@ -111,6 +111,10 @@ func (tn *RingAgentRegistration) GetInfrMsgSent() uint64 {
     }
 }
 
+func (tn *RingAgentRegistration) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
+}
+
 func (rar *RingAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
     conns := []*duplexConn{}
     candNodes := []CandidateNode{}
@@ -434,6 +438,10 @@ func (rn *RingNode) regConnHandlerIn(regConn *duplexConn) {
     }
 }
 
+func (tn *RingNode) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
+}
+
 func (rn *RingNode) Work(timeout int64, timedOut chan<- struct{}){
     listenerConns, chnReady := listener(rn.port)
     regConn := connectWith(rn.registrationAddress)
@@ -534,6 +542,10 @@ func (rc *RingCounter) handleConn(conn *duplexConn) {
             rc.onInfrMsgSent()
         }
     }
+}
+
+func (tn *RingCounter) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
 }
 
 func (rc *RingCounter) Work(timeout int64, timedOut chan<- struct{}){

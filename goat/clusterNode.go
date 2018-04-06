@@ -67,6 +67,10 @@ func (tn *ClusterAgentRegistration) GetInfrMsgSent() uint64 {
     }
 }
 
+func (tn *ClusterAgentRegistration) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
+}
+
 func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for {
@@ -172,6 +176,10 @@ func NewClusterMessageQueuePerf(perfTest bool, port int) *ClusterMessageQueue {
     }
 }
 
+func (tn *ClusterMessageQueue) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
+}
+
 func (cmq *ClusterMessageQueue) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for{
@@ -260,6 +268,10 @@ func NewClusterNodePerf(perfTest bool, port int, messageQueueAddress string, cou
         infrMessagesSent: 0,
         perfTest: perfTest,
     }
+}
+
+func (tn *ClusterNode) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
 }
 
 func (cn *ClusterNode) Work(timeout int64, timedOut chan<- struct{}){

@@ -151,6 +151,10 @@ func (srv *CentralServer) ListenConn(cid int, bconn *bufio.Reader) {
     }
 }
 
+func RunCentralServerLoop(port int) *CentralServer {
+    return RunCentralServer(port, make(chan struct{}), 0)
+}
+
 func RunCentralServer(port int, term chan struct{}, msec int64) *CentralServer {
 	srv := CentralServer{
 		nextCompId:           0,

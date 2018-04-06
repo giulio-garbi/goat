@@ -316,6 +316,10 @@ func (tn *TreeNode) dispatch() {
     }
 }
 
+func (tn *TreeNode) WorkLoop() {
+    tn.Work(0, make(chan struct{}))
+}
+
 func (tn *TreeNode) Work(timeout int64, timedOut chan<- struct{}){
     listenerConns, chnReady := listener(tn.port)
     regConn := connectWith(tn.registrationAddress)
