@@ -50,7 +50,7 @@ The following image depicts how the registration procedure works:
 
 The following image depicts how nodes interact:
 
-![Tree infrastructure: nodes interaction](ring_connection.svg)
+![Tree infrastructure: nodes interaction](tree_connection.svg)
 
 The following image depicts how a message id request is carried out:
 
