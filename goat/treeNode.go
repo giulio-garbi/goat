@@ -244,7 +244,7 @@ func (tn *TreeNode) serveChild(childConn *duplexConn, idx int) {
                     msg.sourceAgent = -1
                 } else {
                     msg.sourceDescendant = -1
-                    msg.sourceAgent = atoi(params[1])
+                    msg.sourceAgent = idx - len(tn.childNodesConn)//atoi(params[1])
                 }
                 if !tn.amRoot() {
                     tn.parentConn.Send(tn.prepareMessageForInfrastructure(msg)...)

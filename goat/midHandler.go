@@ -11,6 +11,8 @@ type midHandler struct {
     agent Agent
     attributes *Attributes
     chnNext chan struct{}
+    evtMid int
+    chnEvtMid chan struct{}
 }
 
 type askMidPol int
@@ -31,9 +33,15 @@ func NewMidHandler(chnFreshMid *unboundChanInt, agent Agent, attributes *Attribu
         askMidPolicy: ampNone,
         agent: agent,
         attributes: attributes,
-        chnNext: chnNext}
+        chnNext: chnNext,
+        evtMid: -1}
     go func(){mh.start()}()
     return &mh
+}
+
+func (mh *midHandler) OnMid(mid int, chnEvt chan struct{}) {
+    mh.chnEvtMid = chnEvt
+    mh.evtMid = mid
 }
 
 func (mh *midHandler) StopMids(incomingMids chan struct{}) {
@@ -112,6 +120,9 @@ func (mh *midHandler) start() {
                 }
                 
                 mh.agent.SendMessage(makeMessage(messageToSend, mid))
+                if mh.evtMid == mid {
+                    close(mh.chnEvtMid)
+                }
                 dprintln("X Serving ->", mid)
                 
                 hasFreshChans := false

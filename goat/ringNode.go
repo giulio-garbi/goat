@@ -4,7 +4,6 @@ import (
     "math/rand"
     "time"
     "sync"
-    "fmt"
     "net"
     "sync/atomic"
 )
@@ -318,7 +317,7 @@ func (rn *RingNode) handleAgent(idx int, conn *duplexConn) {
     rn.lock.Lock()
     conn.Send("Registered", itoa(idx), itoa(rn.nid))
     rn.onInfrMsgSent()
-    fmt.Println("Agent", idx, "started at mid",rn.nid)
+    dprintln("Agent", idx, "started at mid",rn.nid)
     rn.lock.Unlock()
     for {
         cmd, params, err := conn.ReceiveErr()
@@ -401,23 +400,24 @@ func (rn *RingNode) handlePrevNode(conn *duplexConn) {
                 rn.lock.Lock()
                 if msgId >= rn.nid{
                     rn.messages[msgId] = append([]string{cmd}, params...)
-                    
-                    for ; len(rn.messages[rn.nid])>0; rn.nid++{
-                        mParams := rn.messages[rn.nid][1:]
-                        sender := atoi(mParams[1])
-                        mParams[1] = "0" //anonimity
-                        for agentId, agentConn := range rn.agents {
-                            if agentId != sender{
-                                agentConn.Send(rn.messages[rn.nid]...)
-                                rn.onInfrMsgSent()
-                            }
-                        }
-                        mParams[1] = itoa(sender) // reset before forwarding
-                        rn.nextNodeConn.Send(rn.messages[rn.nid]...)
-                        rn.onInfrMsgSent()
-                        delete(rn.messages, rn.nid)
-                    }
                 }
+                rn.dispatch(-1)
+                /*
+                for ; len(rn.messages[rn.nid])>0; rn.nid++{
+                    mParams := rn.messages[rn.nid][1:]
+                    sender := atoi(mParams[1])
+                    mParams[1] = "0" //anonimity
+                    for agentId, agentConn := range rn.agents {
+                        if agentId != sender{
+                            agentConn.Send(rn.messages[rn.nid]...)
+                            rn.onInfrMsgSent()
+                        }
+                    }
+                    mParams[1] = itoa(sender) // reset before forwarding
+                    rn.nextNodeConn.Send(rn.messages[rn.nid]...)
+                    rn.onInfrMsgSent()
+                    delete(rn.messages, rn.nid)
+                }*/
                 rn.lock.Unlock()
         }
     }

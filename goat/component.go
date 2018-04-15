@@ -46,6 +46,13 @@ func NewComponentWithAttributes(agent Agent, attrInit map[string]interface{}) *C
 	return &c
 }
 
+func (c *Component) OnMid(mid int) chan struct{} {
+    chnEvt := make(chan struct{})
+    c.midHandler.OnMid(mid, chnEvt)
+    c.messageDispatcher.OnMid(mid, chnEvt)
+    return chnEvt
+}
+
 func (c *Component) GetAgent() Agent {
     return c.agent
 }

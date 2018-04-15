@@ -9,6 +9,8 @@ type messageDispatcher struct {
     chnNext chan struct{}
     chnAcceptMessage chan bool
     attributes *Attributes
+    evtMid int
+    chnEvtMid chan struct{}
 }
 
 func newMessageDispatcher(chnMessageIn *unboundChanMessage, chnSubscribe chan []*Process, chnUnsubscribe chan *Process, chnNext chan struct{}, attributes *Attributes)  *messageDispatcher {
@@ -17,9 +19,15 @@ func newMessageDispatcher(chnMessageIn *unboundChanMessage, chnSubscribe chan []
         chnUnsubscribe: chnUnsubscribe,
         chnNext: chnNext,
         chnAcceptMessage: make(chan bool),
-        attributes: attributes}
+        attributes: attributes,
+        evtMid: -1}
     go func(){md.goroutine()}()
     return &md
+}
+
+func (md *messageDispatcher) OnMid(mid int, chnEvt chan struct{}) {
+    md.chnEvtMid = chnEvt
+    md.evtMid = mid
 }
 
 func (md *messageDispatcher) goroutine() {
@@ -76,6 +84,9 @@ func (md *messageDispatcher) goroutine() {
                             }
                         }
                     }
+                }
+                if md.evtMid == msg.Id {
+                    close(md.chnEvtMid)
                 }
                 //fmt.Println("Served",msg.Id)
                 for p := range toSubscribe{
