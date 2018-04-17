@@ -75,19 +75,21 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
     hasTimedOut := false
     for {
         if len(car.queuedAgents) == 0 {
-            cmd, params, srcAddr := receiveWithAddressTimeout(car.listener, timeout, &hasTimedOut)
+            cmd, params, srcAddr, err := receiveWithAddressTimeoutErr(car.listener, timeout, &hasTimedOut)
             if hasTimedOut {
                 close(timedOut)
                 return
             }
-            switch cmd {
-                case "Register":
-                    car.onInfrMsgAgent()
-                    agPort := params[0]
-                    agAddr := netAddress{srcAddr.Host, agPort}
-                    car.queuedAgents = append(car.queuedAgents, agAddr)
-                case "newAgentKnown":
-                    panic("no agent is being announced!")
+            if err == nil {
+                switch cmd {
+                    case "Register":
+                        car.onInfrMsgAgent()
+                        agPort := params[0]
+                        agAddr := netAddress{srcAddr.Host, agPort}
+                        car.queuedAgents = append(car.queuedAgents, agAddr)
+                    case "newAgentKnown":
+                        panic("no agent is being announced!")
+                }
             }
         } else {
             agAddr := car.queuedAgents[0]
@@ -100,19 +102,21 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
             }
             
             for nodesToReply := len(car.nodesAddresses); nodesToReply > 0; {
-                cmd, params, srcAddr := receiveWithAddressTimeout(car.listener, timeout, &hasTimedOut)
+                cmd, params, srcAddr, err := receiveWithAddressTimeoutErr(car.listener, timeout, &hasTimedOut)
                 if hasTimedOut {
                     close(timedOut)
                     return
                 }
-                switch cmd {
-                    case "Register":
-                        car.onInfrMsgAgent()
-                        nagPort := params[0]
-                        nagAddr := netAddress{srcAddr.Host, nagPort}
-                        car.queuedAgents = append(car.queuedAgents, nagAddr)
-                    case "newAgentKnown":
-                        nodesToReply--
+                if err == nil {
+                    switch cmd {
+                        case "Register":
+                            car.onInfrMsgAgent()
+                            nagPort := params[0]
+                            nagAddr := netAddress{srcAddr.Host, nagPort}
+                            car.queuedAgents = append(car.queuedAgents, nagAddr)
+                        case "newAgentKnown":
+                            nodesToReply--
+                    }
                 }
             }
             
@@ -121,21 +125,23 @@ func (car *ClusterAgentRegistration) Work(timeout int64, timedOut chan<- struct{
             // get current count
             msgCnt := ""
             for msgCnt == "" {
-                cmd, params, srcAddr := receiveWithAddressTimeout(car.listener, timeout, &hasTimedOut)
+                cmd, params, srcAddr, err := receiveWithAddressTimeoutErr(car.listener, timeout, &hasTimedOut)
                 if hasTimedOut {
                     close(timedOut)
                     return
                 }
-                switch cmd {
-                    case "Register":
-                        car.onInfrMsgAgent()
-                        nagPort := params[0]
-                        nagAddr := netAddress{srcAddr.Host, nagPort}
-                        car.queuedAgents = append(car.queuedAgents, nagAddr)
-                    case "newAgentKnown":
-                        panic("no agent is being announced!")
-                    case "count":
-                        msgCnt = params[0]
+                if err == nil {
+                    switch cmd {
+                        case "Register":
+                            car.onInfrMsgAgent()
+                            nagPort := params[0]
+                            nagAddr := netAddress{srcAddr.Host, nagPort}
+                            car.queuedAgents = append(car.queuedAgents, nagAddr)
+                        case "newAgentKnown":
+                            panic("no agent is being announced!")
+                        case "count":
+                            msgCnt = params[0]
+                    }
                 }
             }
             
@@ -183,25 +189,27 @@ func (tn *ClusterMessageQueue) WorkLoop() {
 func (cmq *ClusterMessageQueue) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
     for{
-        cmd, params, srcAddr := receiveWithAddressTimeout(cmq.listener, timeout, &hasTimedOut)
+        cmd, params, srcAddr, err := receiveWithAddressTimeoutErr(cmq.listener, timeout, &hasTimedOut)
         if hasTimedOut {
             close(timedOut)
             return
         }
-        switch cmd {
-            case "add":
-                dprintln("New Message:", params)
-                cmq.messages = append(cmq.messages, params)
-            case "get":
-                srcPort := params[0]
-                cmq.queued = append(cmq.queued, netAddress{srcAddr.Host, srcPort})
-        }
-        if len(cmq.messages) > 0 && len(cmq.queued) > 0 {
-            dprintln("Message to be served:", cmq.messages[0])
-            cmq.onInfrMsgSent()
-            sendToAddress(cmq.queued[0], append([]string{"msg"}, cmq.messages[0]...)...)
-            cmq.messages = cmq.messages[1:]
-            cmq.queued = cmq.queued[1:]
+        if err == nil {
+            switch cmd {
+                case "add":
+                    dprintln("New Message:", params)
+                    cmq.messages = append(cmq.messages, params)
+                case "get":
+                    srcPort := params[0]
+                    cmq.queued = append(cmq.queued, netAddress{srcAddr.Host, srcPort})
+            }
+            if len(cmq.messages) > 0 && len(cmq.queued) > 0 {
+                dprintln("Message to be served:", cmq.messages[0])
+                cmq.onInfrMsgSent()
+                sendToAddress(cmq.queued[0], append([]string{"msg"}, cmq.messages[0]...)...)
+                cmq.messages = cmq.messages[1:]
+                cmq.queued = cmq.queued[1:]
+            }
         }
     }
 }

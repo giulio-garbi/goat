@@ -193,6 +193,39 @@ func receiveWithAddress(listener net.Listener) (string, []string, netAddress) {
     return cmd, params, addr
 }
 
+func receiveWithAddressTimeoutErr(listener net.Listener, msec int64, timedOut *bool) (string, []string, netAddress, error) {
+    var conn net.Conn
+    var err error
+    chnAccepted := make(chan struct{})
+    
+    go func(){
+        conn, err = listener.Accept()
+        close(chnAccepted)
+    }()
+    chnTimeout := timeout(msec)
+    select{
+        case <- chnAccepted:
+            *timedOut = false
+        case <- chnTimeout:
+            *timedOut = true
+            return "", []string{}, netAddress{}, nil
+    }
+    if err != nil {
+        return "", []string{}, netAddress{}, err
+    }
+    serverMsg, err := bufio.NewReader(conn).ReadString('\n')
+    if err == nil {
+        escTokens := strings.Split(serverMsg[:len(serverMsg)-1], " ")
+        tokens := make([]string, len(escTokens))
+        for i, escTok := range escTokens {
+            tokens[i], _ = unescape(escTok, 0)
+        }
+        return tokens[0], tokens[1:], newNetAddress(conn.RemoteAddr().String()), nil
+    } else {
+        return "", []string{}, netAddress{}, err
+    }
+}
+
 func receiveWithAddressTimeout(listener net.Listener, msec int64, timedOut *bool) (string, []string, netAddress) {
     var conn net.Conn
     var err error
