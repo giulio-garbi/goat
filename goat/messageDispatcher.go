@@ -40,6 +40,7 @@ func (md *messageDispatcher) goroutine() {
                 unsubscribedProcs := map[*Process]struct{}{}
                 accepted := false
                 i := 1
+                //fmt.Println("Serving",msg.Id)
                 for p := range subscribedProcs {
                     //fmt.Println("Serving",msg.Id,"to",i,"/",len(subscribedProcs))
                     i++

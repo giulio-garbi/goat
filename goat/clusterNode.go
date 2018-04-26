@@ -3,6 +3,7 @@ package goat
 import (
     "net"
     "sync/atomic"
+    //"fmt"
 )
 
 // Contains the set of registered agents, and informs the nodes about their arrival
@@ -188,8 +189,9 @@ func (tn *ClusterMessageQueue) WorkLoop() {
 
 func (cmq *ClusterMessageQueue) Work(timeout int64, timedOut chan<- struct{}){
     hasTimedOut := false
+    var err error = nil
     for{
-        cmd, params, srcAddr, err := receiveWithAddressTimeoutErr(cmq.listener, timeout, &hasTimedOut)
+        cmd, params, srcAddr := receiveWithAddressTimeout(cmq.listener, timeout, &hasTimedOut)
         if hasTimedOut {
             close(timedOut)
             return
@@ -327,6 +329,7 @@ func (cn *ClusterNode) Work(timeout int64, timedOut chan<- struct{}){
                     mid := params[0]
                     cn.onInfrMsgSent()
                     sendTo(cn.agents[reqFrom], "RPLY", mid)
+                    dprintln("RPLY", mid, "to", reqFrom)
                     deliveredMessage = true
             }    
         }

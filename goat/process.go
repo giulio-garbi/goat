@@ -2,6 +2,7 @@ package goat
 
 import (
 	"time"
+	"fmt"
 )
 
 /*
@@ -32,7 +33,9 @@ func NewProcess(c *Component) *Process {
 
 func (p *Process) unsubscribe() {
 	//close(p.chnAcceptMessage)
+	dprintln("Unsubscribing")
 	p.Comp.chnUnsubscribe <- p
+	dprintln("Unsubscribed")
 }
 
 /*

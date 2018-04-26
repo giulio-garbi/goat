@@ -4,6 +4,7 @@ import(
     "net"
     "time"
     "sync"
+    //"fmt"
 )
 
 type ClusterAgent struct{
@@ -73,6 +74,7 @@ func (ca *ClusterAgent) doIncomingProcess(chnRegistered chan<- struct{}) {
                 ca.firstMessageId = atoi(params[1])
                 close(chnRegistered)
             case "RPLY":
+                //fmt.Println("Got RPLY", params[0])
                 mid := atoi(params[0])
                 ca.chnMids.In <- mid
                 

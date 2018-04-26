@@ -1,5 +1,7 @@
 package goat
 
+//import "fmt"
+
 type midHandler struct {
     chnFreshMid *unboundChanInt
     chnMsgFromProc chan messagePredicate
@@ -70,7 +72,7 @@ func (mh *midHandler) start() {
                 mh.agent.AskMid()
                 
             case mid := <- mh.chnFreshMid.Out:
-                dprintln("Prepare a send", mid)
+                //fmt.Println("Prepare a send", mid)
                 stoppedChans := map[chan struct{}]struct{}{}
                 toBeAddedChans := map[chan struct{}]struct{}{}
                 midConsumed := false
@@ -123,7 +125,7 @@ func (mh *midHandler) start() {
                 if mh.evtMid == mid {
                     close(mh.chnEvtMid)
                 }
-                dprintln("X Serving ->", mid)
+                //fmt.Println("X Serving ->", mid)
                 
                 hasFreshChans := false
                 for chn := range toBeAddedChans {
