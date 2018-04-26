@@ -2,7 +2,6 @@ package goat
 
 import (
 	"time"
-	"fmt"
 )
 
 /*
