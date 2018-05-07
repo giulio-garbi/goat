@@ -50,6 +50,10 @@ func NewComponent(agent Agent, attrInit map[string]interface{}) *Component {
     return NewComponentWithAttributes(agent, attrInit)
 }
 
+func (c *Component) Start(procFncs ...func(p *Process)) {
+    NewProcess(c).Run(procFncs...)
+}
+
 func (c *Component) OnMid(mid int) chan struct{} {
     chnEvt := make(chan struct{})
     c.midHandler.OnMid(mid, chnEvt)
