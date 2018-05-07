@@ -151,6 +151,10 @@ func ThenSend(msg Tuple, msgPred ClosedPredicate) SendReceive {
 	return ThenSendUpdate(msg, msgPred, func(*Attributes){})
 }
 
+func Send(msg Tuple, msgPred ClosedPredicate) SendReceive {
+	return ThenSend(msg, msgPred)
+}
+
 /*
 ThenSendUpdate signals the intention to sent the message msg to the components that
 satisfy the predicate pred, and then alters the environment
@@ -163,6 +167,10 @@ func ThenSendUpdate(msg Tuple, msgPred ClosedPredicate, updFnc func(*Attributes)
 		valid:   true,
 		updFnc:  updFnc,
 	}
+}
+
+func SendUpdate(msg Tuple, msgPred ClosedPredicate, updFnc func(*Attributes)) SendReceive {
+	return ThenSendUpdate(msg, msgPred, updFnc)
 }
 
 /*
@@ -185,6 +193,10 @@ func ThenReceive(accept func(*Attributes, Tuple) bool) SendReceive {
 		action: receiveAction,
 		accept: accept,
 	}
+}
+
+func Receive(accept func(*Attributes, Tuple) bool) SendReceive {
+	return ThenReceive(accept)
 }
 
 /*
