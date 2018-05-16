@@ -1,7 +1,7 @@
 # Attribute-based Interaction in Google Go
 
 ## A Virtual Machine with Goat
-We have already setup a machine to experiment with the goat API and the goat plugin. The plugin is a standalone application installed in the virtual machine. You only need to run and start working with directly. The virtual machine can be found here: [virtual machine](https://drive.google.com/open?id=0B9zaHQRMT9M3LVRUcXJnNG1EdXM). In the plugin, we also provide ready intersting examples, namely Stable Allocation and Smart Conference System. We will explain the first one in detail in this tutorial.
+We have already setup a machine to experiment with the goat API and the goat plugin. The plugin is a standalone application installed in the virtual machine. You only need to run and start working with directly. The virtual machine can be found here: [virtual machine](https://drive.google.com/open?id=1E7OcQa-498KZ7Md_L3H-3Jc9vCP18KbT). In the plugin, we also provide ready intersting examples, namely Stable Allocation and Smart Conference System. We will explain the first one in detail in this tutorial.
 
 ## CAS and Attribute-based Interaction:
 Collective-adaptive systems offer an interesting notion of interaction where run-time contextual data are the driving force for selecting interaction partners.The attribute-based interaction has been proposed as a foundational theoretical framework to program CAS interactions. The framework permits a group of partners to interact by considering their run-time properties and their environment. 
