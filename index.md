@@ -20,6 +20,7 @@ GoAt implements many types of infrastructures: a centralized server, a cluster b
 
 ## Getting Started?
 
+* [Installation instructions](install.md)
 * The Eclipse plugin; [tutorial](plugin.md)
 * The GoAt API in Google Go; [tutorial](library.md)
 * The supported infrastructures; [tutorial](infrastructure.md)
